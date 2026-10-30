@@ -22,7 +22,7 @@ const ROUTES=[
 const DEFAULT_AI={
   keys:{gemini:'',openrouter:''},
   routes:{
-    social:{p:'gemini',m:'gemini-flash-latest'},
+    social:{p:'gemini',m:'gemini-flash-lite-latest'},
     story:{p:'gemini',m:'gemini-flash-latest'},
     storyFine:{p:'gemini',m:'gemini-flash-latest'},
     spicy:{p:'openrouter',m:'thedrummer/cydonia-24b-v4.1'},
@@ -155,9 +155,22 @@ async function callOpenRouter(model,prompt,o){
   if(!text.trim())throw{code:'empty',message:reason||'réponse vide'};
   return{text,truncated:reason==='length'};
 }
-function callRoute(r,prompt,o){
+function callOnce(r,prompt,o){
   if(!r||!r.m||r.p==='none')throw{code:'no_model'};
   return r.p==='openrouter'?callOpenRouter(r.m,prompt,o):callGemini(r.m,prompt,o);
+}
+/* Surcharge (503) ou limite passagère (429) : on réessaie 2 fois avant d'abandonner ce modèle. */
+async function callRoute(r,prompt,o){
+  const waits=[1500,4000];
+  for(let i=0;;i++){
+    try{return await callOnce(r,prompt,o)}
+    catch(e){
+      if(i>=waits.length||!['server','rate_limited'].includes(e&&e.code)||/per day|PerDay|quota/i.test(e&&e.message||''))throw e;
+      if(o.onText)o.onText({text:'',delta:''});
+      await new Promise(res=>setTimeout(res,waits[i]));
+      if(o.signal&&o.signal.aborted)throw{code:'cancelled'};
+    }
+  }
 }
 const lastModel={};
 async function sample(input,opts){
