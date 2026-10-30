@@ -626,7 +626,7 @@ function spicify(p){return p.replace("Une romance est possible quand la relation
 const canSpicy=c=>!!c&&(c.score>=80||c.partner==='me');
 const routeFor=c=>c&&c.spicy&&canSpicy(c)?'spicy':undefined;
 async function askJSON(prompt,route){
-  if(route==='spicy')prompt=spicify(prompt);
+  if(route==='spicy')prompt=spicify(prompt)+`\n\nRAPPEL FINAL : la personne à qui tu parles s'appelle ${S.me.name}. N'utilise jamais un autre prénom pour elle (seulement ${S.me.name} ou un petit nom affectueux). Reste le personnage décrit plus haut, avec sa tendresse envers elle. Réponds uniquement avec le JSON demandé, sans texte avant ni après.`;
   const feat=FEAT||'Autre';FEAT=null;
   const s=sample||(samplePromise?await samplePromise:null);
   if(!s)throw{code:'unavailable'};
@@ -636,7 +636,11 @@ async function askJSON(prompt,route){
   const raw=String(text||'').replace(/```json|```/g,'').trim();
   const j=repairJSON(raw);
   if(j){try{normIds(j)}catch(e){}try{applyPairs(j.pairDeltas)}catch(e){}return j}
-  if(raw.startsWith('{'))throw{code:'invalid_json'};
+  if(raw.startsWith('{')){
+    const m=raw.match(/"(?:reply|text|message)"\s*:\s*"((?:[^"\\]|\\.)*)/);
+    if(m&&m[1].trim()){let t=m[1];try{t=JSON.parse('"'+t+'"')}catch(e){t=t.replace(/\\n/g,'\n').replace(/\\"/g,'"')}return {reply:t.trim()}}
+    throw{code:'invalid_json'};
+  }
   return {reply:raw};
 }
 function errText(e){

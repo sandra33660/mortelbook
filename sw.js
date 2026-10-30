@@ -1,7 +1,7 @@
 /* Service worker : l'appli s'ouvre même avec une connexion faible.
    Les pages de l'appli : réseau d'abord (pour avoir toujours la dernière version), copie locale en secours.
    Les appels aux IA et à Supabase ne passent jamais par le cache. */
-const CACHE='mortelbook-v5';
+const CACHE='mortelbook-v6';
 const SHELL=['./','index.html','config.js','js/shim.js','manifest.webmanifest','icons/icon-192.png','icons/icon-512.png'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL)).then(()=>self.skipWaiting()))});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});
