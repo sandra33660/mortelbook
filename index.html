@@ -634,7 +634,7 @@ function errText(e){
   const c=e&&e.code;
   if(c==='not_granted')return"Claude n'a pas été autorisé, les persos ne peuvent pas répondre. Recharge la page pour qu'on te le redemande.";
   if(c==='rate_limited')return'Limite gratuite atteinte. Attends une minute avant de relancer.';
-  if(c==='unavailable')return'Connexion impossible (internet ou serveur). Réessaie dans un instant.';
+  if(c==='unavailable')return'Connexion impossible (internet ou serveur). Réessaie dans un instant.'+(e.diag?`\n🔧 Détail : ${e.diag}`:'');
   if(c==='no_key'||c==='bad_key'||c==='no_model')return'Réglages IA à vérifier : '+(e.message||c)+'.';
   if(c==='credits')return'Crédit OpenRouter épuisé : recharge-le sur openrouter.ai.';
   if(c==='blocked')return'Le modèle a refusé de répondre. Réessaie, ou change de modèle dans ⚙️.';

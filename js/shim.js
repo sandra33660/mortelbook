@@ -166,17 +166,19 @@ async function sample(input,opts){
   const route=AI.routes[o.route]?o.route:'social';
   const chain=[AI.routes[route]];
   if(route!=='spicy'&&AI.routes.fallback&&AI.routes.fallback.p!=='none'&&AI.routes.fallback.m)chain.push(AI.routes.fallback);
-  let last=null;
+  let last=null;const diag=[];
   for(let i=0;i<chain.length;i++){
     try{const r=await callRoute(chain[i],prompt,o);lastModel[route]=chain[i].m;return r}
     catch(e){last=e;if(e.code==='cancelled')throw e;
+      diag.push(`${chain[i].p==='openrouter'?'OpenRouter':'Gemini'} (${chain[i].m}) : ${e.code}${e.message?' – '+String(e.message).replace(/\s+/g,' ').slice(0,120):''}`);
+      try{console.warn('[Mortelbook IA]',diag[diag.length-1])}catch(x){}
       const retry=['rate_limited','blocked','server','unavailable','empty','no_key'].includes(e.code);
       if(!retry||i===chain.length-1)break;
       if(o.onText)o.onText({text:'',delta:''});
     }
   }
   const m={no_key:'clé API manquante : ouvre ⚙️ pour la renseigner',bad_key:'clé API refusée : vérifie-la dans ⚙️',credits:'crédit OpenRouter épuisé',rate_limited:'limite gratuite atteinte, réessaie dans une minute',blocked:'le modèle a refusé de répondre',no_model:'aucun modèle choisi pour cet usage dans ⚙️'};
-  throw Object.assign({},last,{message:m[last&&last.code]||(last&&last.message)||'erreur'});
+  throw Object.assign({},last,{message:m[last&&last.code]||(last&&last.message)||'erreur',diag:diag.join(' | ')});
 }
 
 /* ---------------- téléchargement ---------------- */
