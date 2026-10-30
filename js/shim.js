@@ -25,7 +25,7 @@ const DEFAULT_AI={
     social:{p:'gemini',m:'gemini-flash-lite-latest'},
     story:{p:'gemini',m:'gemini-flash-latest'},
     storyFine:{p:'gemini',m:'gemini-flash-latest'},
-    spicy:{p:'openrouter',m:'thedrummer/cydonia-24b-v4.1'},
+    spicy:{p:'openrouter',m:'thedrummer/cydonia-24b-v4.1, mistralai/mistral-nemo'},
     fallback:{p:'openrouter',m:'thedrummer/cydonia-24b-v4.1'}
   }
 };
@@ -160,7 +160,7 @@ function callOnce(r,prompt,o){
   return r.p==='openrouter'?callOpenRouter(r.m,prompt,o):callGemini(r.m,prompt,o);
 }
 /* Surcharge (503) ou limite passagère (429) : on réessaie 2 fois avant d'abandonner ce modèle. */
-async function callRoute(r,prompt,o){
+async function callOneModel(r,prompt,o){
   const waits=[1500,4000];
   for(let i=0;;i++){
     try{return await callOnce(r,prompt,o)}
@@ -171,6 +171,17 @@ async function callRoute(r,prompt,o){
       if(o.signal&&o.signal.aborted)throw{code:'cancelled'};
     }
   }
+}
+/* Plusieurs modèles possibles, séparés par des virgules : on essaie le suivant si le premier est saturé. */
+async function callRoute(r,prompt,o){
+  const ms=String(r&&r.m||'').split(',').map(x=>x.trim()).filter(Boolean);
+  if(!ms.length)return callOnce(r,prompt,o);
+  let last;
+  for(let i=0;i<ms.length;i++){
+    try{return await callOneModel(Object.assign({},r,{m:ms[i]}),prompt,o)}
+    catch(e){last=e;if(e.code==='cancelled'||e.code==='no_key'||e.code==='bad_key'||e.code==='credits')throw e;if(o.onText)o.onText({text:'',delta:''})}
+  }
+  throw last;
 }
 const lastModel={};
 async function sample(input,opts){
@@ -190,7 +201,7 @@ async function sample(input,opts){
       if(o.onText)o.onText({text:'',delta:''});
     }
   }
-  const m={no_key:'clé API manquante : ouvre ⚙️ pour la renseigner',bad_key:'clé API refusée : vérifie-la dans ⚙️',credits:'crédit OpenRouter épuisé',rate_limited:'limite gratuite atteinte, réessaie dans une minute',blocked:'le modèle a refusé de répondre',no_model:'aucun modèle choisi pour cet usage dans ⚙️'};
+  const m={no_key:'clé API manquante : ouvre ⚙️ pour la renseigner',bad_key:'clé API refusée : vérifie-la dans ⚙️',credits:'crédit OpenRouter épuisé',rate_limited:'modèle saturé ou limite atteinte, réessaie dans une minute',blocked:'le modèle a refusé de répondre',no_model:'aucun modèle choisi pour cet usage dans ⚙️'};
   throw Object.assign({},last,{message:m[last&&last.code]||(last&&last.message)||'erreur',diag:diag.join(' | ')});
 }
 
@@ -276,8 +287,8 @@ function openSettings(msg){
     <div class="sec"><b>Clés API</b><p class="small">Elles restent dans ton compte (visibles par toi seule).</p>
       <label for="kgem">Clé Gemini (gratuite) · <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">en obtenir une</a></label><input id="kgem" type="password" value="${esc(AI.keys.gemini)}" placeholder="AIza…">
       <label for="kor">Clé OpenRouter · <a href="https://openrouter.ai/settings/keys" target="_blank" rel="noopener">en obtenir une</a></label><input id="kor" type="password" value="${esc(AI.keys.openrouter)}" placeholder="sk-or-…"></div>
-    <div class="sec"><b>Modèle par usage</b><p class="small">Gemini = gratuit (avec limites). OpenRouter = le modèle choisi, gratuit s'il finit par « :free ».</p>
-      ${ROUTES.map(r=>{const v=AI.routes[r.k]||{};return `<label>${r.label}</label><div class="small">${r.hint}</div><div class="row" style="margin-top:6px"><select data-rp="${r.k}" style="flex:0 0 38%"><option value="gemini"${v.p==='gemini'?' selected':''}>Gemini</option><option value="openrouter"${v.p==='openrouter'?' selected':''}>OpenRouter</option>${r.k==='fallback'?`<option value="none"${v.p==='none'?' selected':''}>Aucun</option>`:''}</select><input data-rm="${r.k}" value="${esc(v.m||'')}" list="dl-${v.p==='openrouter'?'openrouter':'gemini'}" placeholder="nom du modèle"></div><div class="row" style="margin-top:6px"><span class="small" id="tr-${r.k}"></span><button class="bt ghost" data-test="${r.k}" style="flex:0 0 auto;padding:6px 12px">Tester</button></div>`}).join('')}
+    <div class="sec"><b>Modèle par usage</b><p class="small">Gemini = gratuit (avec limites). OpenRouter = le modèle choisi, gratuit s'il finit par « :free ». Tu peux mettre plusieurs modèles séparés par des virgules : si le premier est saturé, l'appli essaie le suivant.</p>
+      ${ROUTES.map(r=>{const v=AI.routes[r.k]||{};return `<label>${r.label}</label><div class="small">${r.hint}</div><div class="row" style="margin-top:6px"><select data-rp="${r.k}" style="flex:0 0 38%"><option value="gemini"${v.p==='gemini'?' selected':''}>Gemini</option><option value="openrouter"${v.p==='openrouter'?' selected':''}>OpenRouter</option>${r.k==='fallback'?`<option value="none"${v.p==='none'?' selected':''}>Aucun</option>`:''}</select><input data-rm="${r.k}" value="${esc(v.m||'')}" title="Plusieurs modèles possibles, séparés par des virgules" list="dl-${v.p==='openrouter'?'openrouter':'gemini'}" placeholder="nom du modèle"></div><div class="row" style="margin-top:6px"><span class="small" id="tr-${r.k}"></span><button class="bt ghost" data-test="${r.k}" style="flex:0 0 auto;padding:6px 12px">Tester</button></div>`}).join('')}
       ${opt(modelLists.gemini,'gemini')}${opt(modelLists.openrouter,'openrouter')}
       <div class="row" style="margin-top:12px"><span class="small" id="mllist">${modelLists.openrouter?'Listes de modèles chargées : commence à taper un nom pour voir les suggestions.':''}</span><button class="bt ghost" id="mbload" style="flex:0 0 auto">🔄 Charger les modèles</button></div></div>
     <div class="row"><span></span><button class="bt gold" id="mbsave" style="flex:0 0 auto">Enregistrer</button></div>
