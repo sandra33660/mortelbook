@@ -314,7 +314,7 @@ const busy={};
 function trim(){
   if(S.snaps){S.snaps=S.snaps.filter(s=>now()-s.ts<864e5);if(S.snaps.length>30)S.snaps.splice(0,S.snaps.length-30)}
   if(S.posts.length>40)S.posts.splice(40);
-  for(const k in S.dms){const a=S.dms[k];if(a.length>80)a.splice(0,a.length-80)}
+  for(const k in S.dms){const a=S.dms[k];if(a.length>5000)a.splice(0,a.length-5000)}
   S.chars.forEach(c=>{c.memories=c.memories||[];if(c.memories.length>12)c.memories.splice(0,c.memories.length-12)});
 }
 let written={},saveErr=null,remoteLoaded=false;
@@ -1029,7 +1029,7 @@ async function sendGroup(id,text,opt){
     if(opt.accept&&r.accept&&typeof r.accept==='object'){const a=r.accept;opt.accepted=(opt.must||[]).filter(k=>a[k]===true||a[k]==='true')}
     (r.messages||[]).forEach(m=>{const c=charById(m.id);if(c)c.activeAt=now()});if(!(tab==='dms'&&openChat==='g:'+id)){S.unread['g:'+id]=1;notify('👥',`Nouveaux messages dans « ${g.name} ».`,{t:'grp',id})}
   }catch(e){const t=errText(e);if(t)g.msgs.push({from:'sys',text:t,ts:now()})}
-  if(g.msgs.length>120)g.msgs.splice(0,g.msgs.length-120);
+  if(g.msgs.length>5000)g.msgs.splice(0,g.msgs.length-5000);
   delete busy['grp-'+id];save();render();scrollChat();
 }
 
