@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <title>Mortelbook</title>
 <meta name="theme-color" content="#0e211b">
 <link rel="manifest" href="manifest.webmanifest">
@@ -94,7 +94,8 @@ h2.sec{font-family:"IM Fell English",Georgia,serif;font-weight:400;font-size:24p
 /* chat */
 .chathead{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);margin-bottom:10px;position:sticky;top:calc(env(safe-area-inset-top,0px) + var(--hh,58px));z-index:4;background:var(--bg)}
 .back{background:none;border:0;font-size:22px;padding:4px 8px 4px 0}
-.thread{display:flex;flex-direction:column;gap:6px;padding-bottom:200px}
+.thread{display:flex;flex-direction:column;gap:6px;padding-bottom:calc(200px + var(--kb,0px))}
+.retry{align-self:center;margin:2px 0 6px}
 .thread .event{margin-top:10px}
 .tbtn{flex:none;background:var(--sunk);border:1px solid var(--line);border-radius:50%;width:42px;height:42px;font-size:18px}
 .tbtn[aria-pressed="true"]{border-color:var(--gold)}
@@ -817,7 +818,7 @@ async function sendDM(cid,text,extra){
     if(r.rebuff===true&&c.partner!=='me'&&!c.friendOnly){c.friendOnly=true;setTimeout(()=>toast(`🤝 ${c.name} a compris le message : vous restez amis.`),1200);notify('🤝',`${c.name} a compris : vous restez amis.`,{t:'profile',id:c.id})}
     applyDelta(c,r.delta,r.why);
     if(!(tab==='dms'&&openChat===cid)){S.unread[cid]=1;if(rep)notify('✉️',`${c.name} t'a répondu : « ${rep.slice(0,60)}${rep.length>60?'…':''} »`,{t:'dm',id:cid})}
-  }catch(e){th=S.dms[cid]=S.dms[cid]||[];const t=errText(e);if(t)th.push({from:'sys',text:t,ts:now()})}
+  }catch(e){th=S.dms[cid]=S.dms[cid]||[];const t=errText(e);if(t)th.push({from:'sys',text:t,ts:now(),retry:{text,extra:extra||''}})}
   delete busy['dm-'+cid];save();render();scrollChat();
 }
 
@@ -1028,7 +1029,7 @@ async function sendGroup(id,text,opt){
     const d=r.deltas||{};Object.keys(d).forEach(k=>{const c=charById(k);if(c)applyDelta(c,d[k],(r.why||{})[k],true)});
     if(opt.accept&&r.accept&&typeof r.accept==='object'){const a=r.accept;opt.accepted=(opt.must||[]).filter(k=>a[k]===true||a[k]==='true')}
     (r.messages||[]).forEach(m=>{const c=charById(m.id);if(c)c.activeAt=now()});if(!(tab==='dms'&&openChat==='g:'+id)){S.unread['g:'+id]=1;notify('👥',`Nouveaux messages dans « ${g.name} ».`,{t:'grp',id})}
-  }catch(e){const t=errText(e);if(t)g.msgs.push({from:'sys',text:t,ts:now()})}
+  }catch(e){const t=errText(e);if(t)g.msgs.push({from:'sys',text:t,ts:now(),retry:opt.accept?null:{text,opt:{must:opt.must||null,extra:opt.extra||''}}})}
   if(g.msgs.length>5000)g.msgs.splice(0,g.msgs.length-5000);
   delete busy['grp-'+id];save();render();scrollChat();
 }
@@ -1772,7 +1773,7 @@ function gToolHTML(g){
   return `<div class="toolp">${who}<div class="small" style="margin-top:6px">Proposer une sortie ou un événement</div><div class="creply"><input type="text" id="gdatein" placeholder="Une soirée jeux, un bal, une virée à Pré-au-Lard..." aria-label="Sortie"><button class="btn small gold" id="gdatego">Proposer</button></div></div>`;
 }
 function groupView(g){
-  const msgs=g.msgs.map((m,i)=>m.from==='me'?`<div class="msg me" data-mrx="g§${g.id}§${i}">${fmt(m.text)}</div>${mrxHTML('g',g.id,m,i)}`:m.from==='sys'?`<div class="msg sys">${fmt(m.text)}</div>`:`<div class="msg them" data-mrx="g§${g.id}§${i}"><div class="gname">${esc(emojiOf(m.from))} ${esc(nameOf(m.from))}</div>${fmt(m.text)}</div>${mrxHTML('g',g.id,m,i)}`).join('')+(busy['grp-'+g.id]?`<div class="msg them"><span class="dots">Ça écrit</span></div>`:'');
+  const msgs=g.msgs.map((m,i)=>m.from==='me'?`<div class="msg me" data-mrx="g§${g.id}§${i}">${fmt(m.text)}</div>${mrxHTML('g',g.id,m,i)}`:m.from==='sys'?`<div class="msg sys">${fmt(m.text)}</div>${m.retry&&i===g.msgs.length-1&&!busy['grp-'+g.id]?`<button class="btn small gold retry" data-retry="g§${g.id}">↻ Renvoyer mon message</button>`:''}`:`<div class="msg them" data-mrx="g§${g.id}§${i}"><div class="gname">${esc(emojiOf(m.from))} ${esc(nameOf(m.from))}</div>${fmt(m.text)}</div>${mrxHTML('g',g.id,m,i)}`).join('')+(busy['grp-'+g.id]?`<div class="msg them"><span class="dots">Ça écrit</span></div>`:'');
   return `<div class="chathead"><button class="back" id="back" aria-label="Retour">←</button><span class="av">👥</span><div style="flex:1"><b>${esc(g.name)}</b><div class="small">${g.members.map(id=>esc(emojiOf(id)+' '+nameOf(id).split(' ')[0])).join(', ')}</div></div><button class="tbtn" data-gedit="${g.id}" aria-label="Modifier le groupe" aria-pressed="${gEdit===g.id}">⚙️</button></div>
     ${gEdit===g.id?`<div class="card"><label for="gename">Nom du groupe</label><input type="text" id="gename" value="${esc(g.name)}"><label>Membres (2 à 12)</label><div class="chips">${S.chars.map(c=>`<button class="chip" aria-pressed="${(gEditSel||g.members).includes(c.id)}" data-gesel="${c.id}">${esc(c.emoji)} ${esc(c.name)}</button>`).join('')}</div><div class="actions"><button class="btn danger small" data-gdel="${g.id}">Supprimer le groupe</button><button class="btn gold small" data-gsave="${g.id}">Enregistrer</button></div></div>`:''}
     <div class="thread" id="thread">${msgs||'<p class="empty">Lance la conversation !</p>'}${(S.event&&S.event.groupWith===g.id)||busy.eventFor==='g:'+g.id?eventHTML():''}</div>
@@ -1781,7 +1782,7 @@ function groupView(g){
 function chatView(c){
   const th=S.dms[c.id]||[];
   let lastMe=-1;th.forEach((m,i)=>{if(m.from==='me')lastMe=i});
-  const msgs=th.map((m,i)=>`<div class="msg ${m.from}"${m.from!=='sys'?` data-mrx="d§${c.id}§${i}"`:''}>${fmt(m.text)}</div>${m.from!=='sys'?mrxHTML('d',c.id,m,i):''}${i===lastMe&&m.seen?`<div class="seen">Vu à ${hhmm(m.seen)}</div>`:''}`).join('')+(busy['dm-'+c.id]?`<div class="msg them"><span class="dots">${esc(c.name.split(' ')[0])} écrit</span></div>`:'');
+  const msgs=th.map((m,i)=>`<div class="msg ${m.from}"${m.from!=='sys'?` data-mrx="d§${c.id}§${i}"`:''}>${fmt(m.text)}</div>${m.from==='sys'&&m.retry&&i===th.length-1&&!busy['dm-'+c.id]?`<button class="btn small gold retry" data-retry="d§${c.id}">↻ Renvoyer mon message</button>`:''}${m.from!=='sys'?mrxHTML('d',c.id,m,i):''}${i===lastMe&&m.seen?`<div class="seen">Vu à ${hhmm(m.seen)}</div>`:''}`).join('')+(busy['dm-'+c.id]?`<div class="msg them"><span class="dots">${esc(c.name.split(' ')[0])} écrit</span></div>`:'');
   const ps=pendingSecret(c);
   const evHere=(S.event&&S.event.dateWith===c.id)||busy.eventFor===c.id;
   const tool=chatTool==='gift'?`<div class="toolp"><div class="small">Offrir un cadeau (un par jour)</div><div class="chips">${GIFTS.map((g,i)=>`<button class="chip" data-gift="${i}">${esc(g)}</button>`).join('')}</div><div class="creply"><input type="text" id="giftin" placeholder="Ou autre chose..." aria-label="Cadeau"><button class="btn small gold" id="giftgo">Offrir</button></div></div>`
@@ -1972,6 +1973,10 @@ document.getElementById('view').addEventListener('click',e=>{
   if(t.dataset.notif){const n=(S.notifs||[]).find(x=>x.id===t.dataset.notif);if(n){if(tab==='notifs')profPrev={tab:'feed',openChat:null};goTo(n.to)}return}
   if(t.dataset.rxlist){showRx(t.dataset.rxlist);return}
   if(t.id==='mbexport'){exportAll();return}
+  if(t.dataset.retry){const [k,id]=t.dataset.retry.split('§');const arr=k==='d'?(S.dms[id]||[]):((gid(id)||{}).msgs||[]);const last=arr[arr.length-1];
+    if(last&&last.from==='sys'&&last.retry){const r=last.retry;arr.pop();for(let j=arr.length-1;j>=0;j--){if(arr[j].from==='me'&&arr[j].text===r.text){arr.splice(j,1);break}if(arr[j].from!=='sys')break}
+      if(k==='d')sendDM(id,r.text,r.extra||undefined);else sendGroup(id,r.text,{must:r.opt&&r.opt.must||undefined,extra:r.opt&&r.opt.extra||undefined})}
+    return}
   if(t.dataset.spicy){const c=charById(t.dataset.spicy);if(c){c.spicy=!c.spicy;toast(c.spicy?`🌶️ Mode épicé avec ${c.name} : ses messages passent par le modèle adulte.`:`Mode épicé désactivé avec ${c.name}.`);save();render()}return}
   if(t.dataset.fonly){const c=charById(t.dataset.fonly);if(c){c.friendOnly=!c.friendOnly;toast(c.friendOnly?`🤝 ${c.name} sait maintenant que vous restez amis.`:`${c.name} n'est plus limité à l'amitié.`);save();render()}return}
   if(t.dataset.creply){const [pid,ci]=t.dataset.creply.split('§');replyTo={pid,ci:+ci};render();setTimeout(()=>{const i=document.querySelector(`[data-cin="${pid}"]`);if(i)i.focus()},50);return}
@@ -2067,6 +2072,7 @@ document.getElementById('view').addEventListener('click',e=>{
   else if(t.id==='saveme'){S.me.name=document.getElementById('me-name').value.trim()||S.me.name;S.me.emoji=document.getElementById('me-emoji').value.trim()||S.me.emoji;save();render();toast('Profil enregistré.')}
   else if(t.id==='resetall'){ask('Tout effacer : persos, posts, messages et relations ?',()=>{S=defaults();save();render()});}
 });
+document.getElementById('view').addEventListener('focusin',e=>{if(e.target.id==='dmin'){scrollChat();setTimeout(scrollChat,350)}});
 document.getElementById('view').addEventListener('input',e=>{
   if(e.target.id==='libq'){libSearch=e.target.value;render();return}
   const k=e.target.dataset&&e.target.dataset.sf;if(k){F()[k]=e.target.value;save()}
