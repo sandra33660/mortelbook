@@ -868,17 +868,18 @@ async function startEvent(){
 async function chooseEvent(choice){
   const ev=S.event;if(!ev||ev.done||busy.event)return;
   const cur=ev.steps[ev.steps.length-1];cur.pick=choice;
-  const n=ev.steps.length;const last=n>=3;
+  const n=ev.steps.length;const last=n>=8||!!ev.forceEnd;const canEnd=n>=3;
   busy.event='La suite s\'écrit';save();render();
   const cast=(ev.cast.length?ev.cast:S.chars.map(c=>c.id)).map(charById).filter(Boolean);
   const list=cast.map(c=>`### ${c.id}\n${persona(c)}`).join('\n\n');
   const story=ev.steps.map((s,i)=>`Scène ${i+1} :\n${s.scene}\nChoix de ${S.me.name} : ${s.pick}`).join('\n\n');
-  const prompt=`${frame()}\n\nPersonnages impliqués :\n\n${list}\n\nÉvénement « ${ev.title} ». Déroulé jusqu'ici :\n\n${story}\n\nÉcris la scène ${n+1} à la deuxième personne, 90 à 150 mots, conséquence directe du dernier choix. Les personnages réagissent selon leur personnalité et leur relation avec elle ; un choix peut avoir des conséquences inattendues. ${last?"C'est la scène finale : conclus l'événement de façon marquante, sans proposer de choix.":"Termine sur un nouveau moment de choix avec 3 options courtes (6 à 12 mots) et vraiment différentes."}\n${DELTA_RULE}\nSi un personnage retient quelque chose de marquant sur elle, note-le dans "memories".\n\nRéponds UNIQUEMENT avec ce JSON :\n{"scene":"...","choices":${last?'[]':'["...","...","..."]'},"deltas":{"id":0},"why":{"id":"raison en 6 mots max"},"memories":{"id":""},"pairDeltas":{"idA|idB":0}}`;
+  const prompt=`${frame()}\n\nPersonnages impliqués :\n\n${list}\n\nÉvénement « ${ev.title} ». Déroulé jusqu'ici :\n\n${story}\n\nÉcris la scène ${n+1} à la deuxième personne, 90 à 150 mots, conséquence directe du dernier choix. Les personnages réagissent selon leur personnalité et leur relation avec elle ; un choix peut avoir des conséquences inattendues. ${last?"C'est la scène finale : conclus l'événement de façon marquante, sans proposer de choix.":`Fais avancer l'événement selon son propre rythme : il dure le temps qu'il faut, sans se presser.${canEnd?" Seulement si l'histoire arrive vraiment à sa conclusion naturelle, conclus-la de façon marquante, mets \"end\": true et aucun choix.":""} Sinon, termine sur un nouveau moment de choix avec 3 options courtes (6 à 12 mots) et vraiment différentes.`}\n${DELTA_RULE}\nSi un personnage retient quelque chose de marquant sur elle, note-le dans "memories".\n\nRéponds UNIQUEMENT avec ce JSON :\n{"scene":"...","choices":${last?'[]':'["...","...","..."]'},"end":${last?'true':'false'},"deltas":{"id":0},"why":{"id":"raison en 6 mots max"},"memories":{"id":""},"pairDeltas":{"idA|idB":0}}`;
   try{
     const r=await (FEAT='Événements',askJSON)(prompt,ev.dateWith?routeFor(charById(ev.dateWith)):undefined);
     if(r.scene){
-      ev.steps.push({scene:r.scene,choices:last?[]:(r.choices||[]).slice(0,3),pick:null});
-      if(last||!(r.choices||[]).length){ev.done=true;S.eventLog=(S.eventLog||[]).concat(`${ev.title} (avec ${(ev.cast||[]).map(nameOf).join(', ')||'plusieurs persos'}) : ${String(r.scene).replace(/\s+/g,' ').slice(0,180)}…`).slice(-8)}
+      const ended=last||(canEnd&&(r.end===true||r.end==='true'));
+      ev.steps.push({scene:r.scene,choices:ended?[]:(r.choices||[]).slice(0,3),pick:null});
+      if(ended||!(r.choices||[]).length){ev.done=true;S.eventLog=(S.eventLog||[]).concat(`${ev.title} (avec ${(ev.cast||[]).map(nameOf).join(', ')||'plusieurs persos'}) : ${String(r.scene).replace(/\s+/g,' ').slice(0,180)}…`).slice(-8)}
       const m=r.memories||{};Object.keys(m).forEach(id=>{const c=charById(id);if(c&&m[id]&&String(m[id]).trim()){c.memories=c.memories||[];c.memories.push(String(m[id]).trim().slice(0,140))}});
       const d=r.deltas||{};Object.keys(d).forEach(id=>{const c=charById(id);if(c)applyDelta(c,d[id],(r.why||{})[id],true)});
     }else{cur.pick=null;toast("La suite n'est pas arrivée. Réessaie.")}
@@ -1793,7 +1794,7 @@ function eventHTML(){
     else if(isCur&&!busy.event&&s.choices.length)ch=`<div class="choices">${s.choices.map((c,j)=>`<button class="choice" data-choice="${j}">${esc(c)}</button>`).join('')}<div class="creply"><input type="text" id="evfree" placeholder="Ou fais autre chose..." aria-label="Ton propre choix"><button class="btn small ghost" id="evgo">Faire</button></div></div>`;
     return `<div class="step"><div class="scene">${fmt(s.scene)}</div>${ch}</div>`;
   }).join('');
-  const foot=busy.event?`<p class="pending"><span class="dots">${esc(busy.event)}</span></p>`:ev.done?`<div class="actions"><span class="small">Fin de l'événement</span><button class="btn small" id="evclose">Fermer</button></div>`:`<div class="actions"><span></span><button class="btn small danger" id="evquit">Abandonner</button></div>`;
+  const foot=busy.event?`<p class="pending"><span class="dots">${esc(busy.event)}</span></p>`:ev.done?`<div class="actions"><span class="small">Fin de l'événement</span><button class="btn small" id="evclose">Fermer</button></div>`:`<div class="actions"><button class="btn small danger" id="evquit">Abandonner</button>${ev.steps.length>=2?'<button class="btn small ghost" id="evend">🏁 Conclure</button>':''}</div>`;
   return `<section class="event"><div class="evtitle">${esc(ev.title)}</div>${steps}${foot}</section>`;
 }
 function feedView(){
@@ -2089,8 +2090,9 @@ document.getElementById('view').addEventListener('click',e=>{
   else if(t.id==='evstart')startEvent();
   else if(t.dataset.choice!==undefined&&S.event){const s=S.event.steps[S.event.steps.length-1];chooseEvent(s.choices[+t.dataset.choice])}
   else if(t.id==='evgo'){const i=document.getElementById('evfree');const x=i.value.trim();if(x)chooseEvent(x)}
-  else if(t.id==='evclose'){S.event=null;save();render();window.scrollTo({top:0,behavior:'smooth'})}
-  else if(t.id==='evquit'){ask("Abandonner l'événement en cours ?",()=>{S.event=null;save();render();window.scrollTo({top:0,behavior:'smooth'})});}
+  else if(t.id==='evend'&&S.event&&!S.event.done){const ev=S.event;const st=ev.steps[ev.steps.length-1];ev.forceEnd=true;chooseEvent('Conclure l\'événement maintenant, de façon marquante.')}
+  else if(t.id==='evclose'){S.event=null;save();render();if(tab==='dms'&&openChat)scrollChat();else window.scrollTo({top:0,behavior:'smooth'})}
+  else if(t.id==='evquit'){ask("Abandonner l'événement en cours ?",()=>{S.event=null;save();render();if(tab==='dms'&&openChat)scrollChat();else window.scrollTo({top:0,behavior:'smooth'})});}
   else if(t.dataset.csend){const i=document.querySelector(`[data-cin="${t.dataset.csend}"]`);const x=i.value.trim();if(!x)return;i.value='';let re=null;if(replyTo&&replyTo.pid===t.dataset.csend){const tc=(S.posts.find(q=>q.id===replyTo.pid)||{comments:[]}).comments[replyTo.ci];if(tc)re={a:tc.author,t:String(tc.text).slice(0,120)}}replyTo=null;comment(t.dataset.csend,x,re)}
   else if(t.dataset.open){openChat=t.dataset.open;render();scrollChat()}
   else if(t.id==='back'){openChat=null;chatTool=null;gEdit=null;gEditSel=null;render()}
