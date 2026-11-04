@@ -545,8 +545,19 @@ function repeatedBits(c){
   const gest=[];raw.forEach(t=>{(t.match(/\*([^*]{4,})\*/g)||[]).forEach(g=>{const w=g.replace(/\*/g,'').trim().split(/[\s,]+/).filter(x=>x.length>1).slice(0,4).join(' ');if(w&&!gest.includes(w))gest.push(w)})});
   return {bits,dors,gest:gest.slice(-10)};
 }
+function publicRecap(c){
+  const H=36e5,lim=now()-36*H,items=[];
+  S.posts.forEach(po=>{
+    if(po.author==='me'&&po.ts>lim)items.push({ts:po.ts,t:`${S.me.name} a publié : « ${String(po.text).slice(0,140)} »`});
+    po.comments.forEach(x=>{if(x.ts>lim&&(x.author==='me'||(x.author===c.id&&(po.author==='me'||po.comments.some(y=>y.author==='me')))))items.push({ts:x.ts,t:`${nameOf(x.author)} a commenté ${po.author==='me'?'le post de '+S.me.name:po.author===c.id?'son propre post':'le post de '+nameOf(po.author)}${x.re?` (en réponse à ${x.re.a==='me'?S.me.name:nameOf(x.re.a)})`:''} : « ${String(x.text).slice(0,140)} »`})});
+  });
+  items.sort((a,b)=>b.ts-a.ts);
+  const ago=ts=>{const h=Math.round((now()-ts)/H);return h<1?"à l'instant":h<24?`il y a ${h} h`:'hier'};
+  return items.slice(0,6).map(i=>`- ${ago(i.ts)} : ${i.t}`).join('\n');
+}
 function voiceNotes(c){
   let out='';
+  {const pr=publicRecap(c);if(pr)out+=`\n\nCE QUI S'EST DIT EN PUBLIC RÉCEMMENT (sur Mortelbook, ${c.name} l'a lu) — tu peux y faire allusion naturellement si c'est pertinent, comme quelqu'un qui suit le fil (taquinerie, réaction, question), sans tout résumer :\n${pr}`}
   const v=voiceBank(c);
   const vv=v.length>4?[...v].sort(()=>Math.random()-.5).slice(0,4):v;
   if(v.length)out+=`\n\nVOIX DE RÉFÉRENCE : voici de vrais messages que ${c.name} lui a écrits auparavant. C'est EXACTEMENT ce ton-là qu'il faut retrouver (tendresse, taquinerie, longueur, richesse), sans recopier ces phrases ni ces gestes :\n${vv.map(t=>'« '+t+' »').join('\n')}`;
@@ -593,18 +604,18 @@ function persona(c,mode){
       const meIn=po.author==='me'||po.comments.some(x=>x.author==='me');
       const heIn=po.author===c.id||po.comments.some(x=>x.author===c.id);
       if(meIn&&heIn){
-        const bits=po.comments.filter(x=>x.author==='me'||x.author===c.id).slice(-3).map(x=>`${nameOf(x.author)} : ${x.text}`).join(' / ');
+        const bits=po.comments.filter(x=>x.author==='me'||x.author===c.id).slice(-5).map(x=>`${nameOf(x.author)} : ${x.text}`).join(' / ');
         pub.push(`Post de ${nameOf(po.author)} « ${po.text.slice(0,90)} »${bits?` → ${bits}`:''}`);
       }
     });
-    if(pub.length)p+=`\nVos derniers échanges en public :\n- ${pub.slice(0,4).join('\n- ')}`;
+    if(pub.length)p+=`\nVos derniers échanges en public :\n- ${pub.slice(0,6).join('\n- ')}`;
     const grp=(S.groups||[]).filter(g=>g.members.includes(c.id)).map(g=>{const ms=g.msgs.filter(m=>m.from==='me'||m.from===c.id).slice(-3).map(m=>`${m.from==='me'?S.me.name:c.name} : ${m.text}`);return ms.length?`Groupe « ${g.name} » : ${ms.join(' / ')}`:''}).filter(Boolean).slice(0,2);
     if(grp.length)p+=`\nVos derniers échanges dans les groupes :\n- ${grp.join('\n- ')}`;
   }else{
-    const th=(S.dms[c.id]||[]).filter(m=>m.from!=='sys').slice(-4);
+    const th=(S.dms[c.id]||[]).filter(m=>m.from!=='sys').slice(-6);
     const grp2=(S.groups||[]).filter(g=>g.members.includes(c.id)).map(g=>{const ms=g.msgs.filter(m=>m.from!=='sys').slice(-3).map(m=>`${m.from==='me'?S.me.name:nameOf(m.from)} : ${m.text}`);return ms.length?`Groupe « ${g.name} » : ${ms.join(' / ')}`:''}).filter(Boolean).slice(0,2);
     if(grp2.length&&mode!=='group')p+=`\nDerniers échanges dans vos groupes :\n- ${grp2.join('\n- ')}`;
-    if(th.length)p+=`\nVos derniers messages privés (ne les révèle pas en public sauf si ton personnage le ferait) :\n${th.map(m=>`${m.from==='me'?S.me.name:c.name} : ${m.text}`).join('\n')}`;
+    if(th.length)p+=`\nVos derniers messages privés (il s'en souvient : il peut y faire une allusion discrète et complice en public, sans révéler ce qui est intime) :\n${th.map(m=>`${m.from==='me'?S.me.name:c.name} : ${m.text}`).join('\n')}`;
   }
   if(S.eventLog&&S.eventLog.length)p+=`\nAventures déjà vécues ensemble sur Mortelbook : ${S.eventLog.slice(-4).join(' ; ')}.`;
   if(c.secrets&&c.secrets.filter(Boolean).length)p+=`\nCe que ${c.name} a déjà confié à ${S.me.name} en privé (il s'en souvient, ne le répète pas en public) : ${c.secrets.filter(Boolean).join(' ; ')}.`;
