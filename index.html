@@ -2232,6 +2232,7 @@ else{
       }
       if(!S.sid)S.sid=uid();
       remoteLoaded=true;
+      S.chars.forEach(async c=>{try{const k=await getKey(col,'core-'+c.id);if(k&&k.trim()){const cur=String(c.core||'');if(!cur.includes(k.trim()))c.core=(cur.trim()?cur.trim()+'\n':'')+k.trim();await col.doc('core-'+c.id).delete();save()}}catch(e){}});
       S.chars.forEach(async c=>{try{const v=await getKey(col,'voice-'+c.id);if(v){const a=JSON.parse(v);if(Array.isArray(a)&&a.length){c.voice=a.map(x=>String(x).slice(0,500));c.voiceSeeded=true}}}catch(e){}});
       try{
         const qs=await col.get();let n=0;
