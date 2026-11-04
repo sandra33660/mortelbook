@@ -158,11 +158,11 @@ async function callOpenRouter(model,prompt,o){
 async function callOnce(r,prompt,o){
   if(!r||!r.m||r.p==='none')throw{code:'no_model'};
   /* Délai maximum : si le modèle ne finit pas à temps, on passe au suivant au lieu d'attendre indéfiniment. */
-  const ms=o.timeout||((o.route==='story'||o.route==='storyFine'||o.route==='spicy')?300000:75000);
+  const ms=o.timeout||((o.route==='story'||o.route==='storyFine'||o.route==='spicy')?300000:150000);
   const ctl=new AbortController();let timedOut=false;
   const t=setTimeout(()=>{timedOut=true;ctl.abort()},ms);
   const onAbort=()=>ctl.abort();if(o.signal){if(o.signal.aborted)ctl.abort();else o.signal.addEventListener('abort',onAbort)}
-  const oo=Object.assign({},o,{signal:ctl.signal,fast:o.route==='social'||!o.route});
+  const oo=Object.assign({},o,{signal:ctl.signal,fast:false});
   try{return await (r.p==='openrouter'?callOpenRouter(r.m,prompt,oo):callGemini(r.m,prompt,oo))}
   catch(e){if(timedOut&&e&&e.code==='cancelled')throw{code:'timeout',message:`pas de réponse après ${Math.round(ms/1000)} s`};throw e}
   finally{clearTimeout(t);if(o.signal)o.signal.removeEventListener('abort',onAbort)}
