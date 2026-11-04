@@ -877,7 +877,7 @@ async function chooseEvent(choice){
   const lastScene=ev.steps[ev.steps.length-1].scene;
   const prompt=`${frame()}\n\nPersonnages impliqués :\n\n${list}\n\nÉvénement « ${ev.title} ». Déroulé jusqu'ici :\n\n${story}\n\nÉcris la scène ${n+1} à la deuxième personne, 90 à 150 mots, conséquence directe du dernier choix. Les personnages réagissent selon leur personnalité et leur relation avec elle ; un choix peut avoir des conséquences inattendues. ${last?"C'est la scène finale : conclus l'événement de façon marquante, sans proposer de choix.":`Fais avancer l'événement selon son propre rythme : il dure le temps qu'il faut, sans se presser.${canEnd?" Seulement si l'histoire arrive vraiment à sa conclusion naturelle, conclus-la de façon marquante, mets \"end\": true et aucun choix.":""} Sinon, termine sur un nouveau moment de choix avec 3 options courtes (6 à 12 mots) et vraiment différentes.`}\n${DELTA_RULE}\nSi un personnage retient quelque chose de marquant sur elle, note-le dans "memories".\n\nRéponds UNIQUEMENT avec ce JSON :\n{"scene":"...","choices":${last?'[]':'["...","...","..."]'},"end":${last?'true':'false'},"deltas":{"id":0},"why":{"id":"raison en 6 mots max"},"memories":{"id":""},"pairDeltas":{"idA|idB":0}}`;
   try{
-    const r=await (FEAT='Événements',askJSON)(prompt+EV_RULES+`\n\nOù en est-on : la scène ${n} vient de se terminer ainsi : « ${String(lastScene).slice(-400)} », et ${S.me.name} a choisi : « ${choice} ». Écris la SUITE directe à partir de ce moment précis (les lieux, positions et actions déjà faits restent acquis).`,ev.dateWith?routeFor(charById(ev.dateWith)):undefined);
+    const r=await (FEAT='Événements',askJSON)(prompt+EV_RULES+evAddr(cast)+`\n\nOù en est-on : la scène ${n} vient de se terminer ainsi : « ${String(lastScene).slice(-400)} », et ${S.me.name} a choisi : « ${choice} ». Écris la SUITE directe à partir de ce moment précis (les lieux, positions et actions déjà faits restent acquis).`,ev.dateWith?routeFor(charById(ev.dateWith)):undefined);
     if(r.scene){
       const ended=last||(canEnd&&(r.end===true||r.end==='true'));
       ev.steps.push({scene:r.scene,choices:ended?[]:cleanChoices(r.choices),pick:null});
@@ -996,6 +996,7 @@ async function proposeDate(cid,idea){
   delete busy['dm-'+cid];save();render();scrollChat();
   if(ok)startDate(c,idea);
 }
+const evAddr=cs=>cs.map(c=>{const a=addressOf(c);return a?`\n- Dans TOUTES ses répliques, ${c.name} ${a==='tu'?'TUTOIE':'VOUVOIE'} ${S.me.name}, du début à la fin, sans exception.`:''}).join('');
 const EV_RULES=`
 
 RÈGLES DE L'ÉVÉNEMENT (impératives) :
@@ -1009,7 +1010,7 @@ async function startDate(c,idea){
   busy.event='Préparation du rendez-vous';busy.eventFor=c.id;render();scrollChat();
   const prompt=`${frame()}\n\nPersonnage :\n\n### ${c.id}\n${persona(c,'event')}\n\n${c.name} a accepté un rendez-vous en tête-à-tête avec ${S.me.name} : « ${idea} ». Écris la scène d'ouverture de ce rendez-vous façon « livre dont vous êtes le héros », à la deuxième personne (« tu » = ${S.me.name}, une femme : accorde au féminin ; jamais à la première personne d'un personnage), 90 à 150 mots, fidèle au personnage, à votre relation et à son humeur du jour. Termine sur un moment de choix avec 3 options courtes (6 à 12 mots) et vraiment différentes.\n\nRéponds UNIQUEMENT avec ce JSON :\n{"title":"titre court du rendez-vous","scene":"...","choices":["...","...","..."]}`;
   try{
-    const r=await (FEAT='Rendez-vous',askJSON)(prompt+EV_RULES,routeFor(c));
+    const r=await (FEAT='Rendez-vous',askJSON)(prompt+EV_RULES+evAddr([c]),routeFor(c));
     if(r.scene)S.event={id:uid(),title:r.title||`Rendez-vous avec ${c.name}`,cast:[c.id],dateWith:c.id,steps:[{scene:r.scene,choices:cleanChoices(r.choices),pick:null}],done:false};
   }catch(e){const t=errText(e);if(t)toast(t)}
   delete busy.event;delete busy.eventFor;save();render();scrollChat();
