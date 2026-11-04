@@ -114,9 +114,9 @@ async function callGemini(model,prompt,o){
   const cats=['HARM_CATEGORY_HARASSMENT','HARM_CATEGORY_HATE_SPEECH','HARM_CATEGORY_SEXUALLY_EXPLICIT','HARM_CATEGORY_DANGEROUS_CONTENT'];
   let res;
   try{res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`,{method:'POST',signal:o.signal,headers:{'Content-Type':'application/json','x-goog-api-key':key},
-    body:JSON.stringify({contents:[{role:'user',parts:[{text:prompt}]}],generationConfig:{temperature:1,maxOutputTokens:o.maxTokens||16384},safetySettings:cats.map(category=>({category,threshold:'BLOCK_NONE'}))})})}
+    body:JSON.stringify({contents:[{role:'user',parts:[{text:prompt}]}],generationConfig:{temperature:1,maxOutputTokens:o.maxTokens||32768},safetySettings:cats.map(category=>({category,threshold:'BLOCK_NONE'}))})})}
   catch(e){if(e&&e.name==='AbortError')throw{code:'cancelled'};throw{code:'unavailable',message:String(e)}}
-  if(!res.ok)throw httpErr(res.status,await res.text().catch(()=>''));
+  if(!res.ok){const tx=await res.text().catch(()=>'');if(res.status===400&&/thinking/i.test(tx)&&!o.noThink)return callGemini(model,prompt,Object.assign({},o,{noThink:true}));throw httpErr(res.status,tx)}
   let text='',reason='';
   try{
     for await(const d of sse(res)){
