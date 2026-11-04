@@ -550,6 +550,7 @@ function voiceNotes(c){
   const r=repeatedBits(c);
   if(r.dors>=2)out+=`\n\nIl lui a déjà dit plusieurs fois de dormir ou de se taire : NE LE REDIS PAS. Change de registre, engage la conversation avec elle.`;
   if(r.bits.length)out+=`\nFormules qu'il a répétées dernièrement, à ne pas réutiliser : ${r.bits.map(b=>'« '+b+' »').join(', ')}.`;
+  {const a=addressOf(c);if(a)out+=`\n\nFORME D'ADRESSE : dans ce message, ${c.name} ${a==='tu'?'TUTOIE':'VOUVOIE'} ${S.me.name} (${a==='tu'?'« tu », « te », « ton », jamais « vous »':'« vous », jamais « tu »'}), même si des messages précédents ont dit autrement.`}
   if(c.partner==='me'||c.score>=80)out+=`\n\nRAPPEL DU TON : il est amoureux d'elle. Doux et taquin à sa manière, il la relance, s'intéresse à ce qu'elle dit. Pas sec, pas expéditif (seulement en cas de vraie dispute).`;
   return out;
 }
@@ -2223,6 +2224,7 @@ else{
       }
       if(!S.sid)S.sid=uid();
       remoteLoaded=true;
+      S.chars.forEach(async c=>{try{const v=await getKey(col,'voice-'+c.id);if(v){const a=JSON.parse(v);if(Array.isArray(a)&&a.length){c.voice=a.map(x=>String(x).slice(0,500));c.voiceSeeded=true}}}catch(e){}});
       try{
         const qs=await col.get();let n=0;
         for(const d of qs.docs){
