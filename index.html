@@ -580,7 +580,8 @@ function persona(c,mode){
   const ad=addressOf(c);
   p+=ad?`\nIMPORTANT : ${c.name} ${ad==='tu'?'TUTOIE':'VOUVOIE'} ${S.me.name}, c'est établi entre eux. Garde cette forme PARTOUT (messages privés, posts, commentaires, groupes, dialogues des événements), sauf changement délibéré et marquant de la relation.`:`\nTutoiement ou vouvoiement de ${S.me.name} : choisis selon le personnage et votre relation, puis reste cohérent partout.`;
   p+=`\nC'est le MÊME personnage partout (posts, commentaires, messages privés, événements) : même voix, mêmes souvenirs, même relation. En public il peut se montrer plus réservé ou plus théâtral qu'en privé, mais il n'oublie rien de ce qui s'est dit ailleurs.`;
-  if(mode==='dm'){
+  if(mode==='event'){
+  }else if(mode==='dm'){
     const pub=[];
     S.posts.slice(0,12).forEach(po=>{
       const meIn=po.author==='me'||po.comments.some(x=>x.author==='me');
@@ -871,14 +872,15 @@ async function chooseEvent(choice){
   const n=ev.steps.length;const last=n>=8||!!ev.forceEnd;const canEnd=n>=3;
   busy.event='La suite s\'écrit';save();render();
   const cast=(ev.cast.length?ev.cast:S.chars.map(c=>c.id)).map(charById).filter(Boolean);
-  const list=cast.map(c=>`### ${c.id}\n${persona(c)}`).join('\n\n');
+  const list=cast.map(c=>`### ${c.id}\n${persona(c,'event')}`).join('\n\n');
   const story=ev.steps.map((s,i)=>`Scène ${i+1} :\n${s.scene}\nChoix de ${S.me.name} : ${s.pick}`).join('\n\n');
+  const lastScene=ev.steps[ev.steps.length-1].scene;
   const prompt=`${frame()}\n\nPersonnages impliqués :\n\n${list}\n\nÉvénement « ${ev.title} ». Déroulé jusqu'ici :\n\n${story}\n\nÉcris la scène ${n+1} à la deuxième personne, 90 à 150 mots, conséquence directe du dernier choix. Les personnages réagissent selon leur personnalité et leur relation avec elle ; un choix peut avoir des conséquences inattendues. ${last?"C'est la scène finale : conclus l'événement de façon marquante, sans proposer de choix.":`Fais avancer l'événement selon son propre rythme : il dure le temps qu'il faut, sans se presser.${canEnd?" Seulement si l'histoire arrive vraiment à sa conclusion naturelle, conclus-la de façon marquante, mets \"end\": true et aucun choix.":""} Sinon, termine sur un nouveau moment de choix avec 3 options courtes (6 à 12 mots) et vraiment différentes.`}\n${DELTA_RULE}\nSi un personnage retient quelque chose de marquant sur elle, note-le dans "memories".\n\nRéponds UNIQUEMENT avec ce JSON :\n{"scene":"...","choices":${last?'[]':'["...","...","..."]'},"end":${last?'true':'false'},"deltas":{"id":0},"why":{"id":"raison en 6 mots max"},"memories":{"id":""},"pairDeltas":{"idA|idB":0}}`;
   try{
-    const r=await (FEAT='Événements',askJSON)(prompt,ev.dateWith?routeFor(charById(ev.dateWith)):undefined);
+    const r=await (FEAT='Événements',askJSON)(prompt+EV_RULES+`\n\nOù en est-on : la scène ${n} vient de se terminer ainsi : « ${String(lastScene).slice(-400)} », et ${S.me.name} a choisi : « ${choice} ». Écris la SUITE directe à partir de ce moment précis (les lieux, positions et actions déjà faits restent acquis).`,ev.dateWith?routeFor(charById(ev.dateWith)):undefined);
     if(r.scene){
       const ended=last||(canEnd&&(r.end===true||r.end==='true'));
-      ev.steps.push({scene:r.scene,choices:ended?[]:(r.choices||[]).slice(0,3),pick:null});
+      ev.steps.push({scene:r.scene,choices:ended?[]:cleanChoices(r.choices),pick:null});
       if(ended||!(r.choices||[]).length){ev.done=true;S.eventLog=(S.eventLog||[]).concat(`${ev.title} (avec ${(ev.cast||[]).map(nameOf).join(', ')||'plusieurs persos'}) : ${String(r.scene).replace(/\s+/g,' ').slice(0,180)}…`).slice(-8)}
       const m=r.memories||{};Object.keys(m).forEach(id=>{const c=charById(id);if(c&&m[id]&&String(m[id]).trim()){c.memories=c.memories||[];c.memories.push(String(m[id]).trim().slice(0,140))}});
       const d=r.deltas||{};Object.keys(d).forEach(id=>{const c=charById(id);if(c)applyDelta(c,d[id],(r.why||{})[id],true)});
@@ -994,12 +996,21 @@ async function proposeDate(cid,idea){
   delete busy['dm-'+cid];save();render();scrollChat();
   if(ok)startDate(c,idea);
 }
+const EV_RULES=`
+
+RÈGLES DE L'ÉVÉNEMENT (impératives) :
+- Narration à la deuxième personne pour ${S.me.name} (« tu », au féminin) ; les personnages sont à la troisième personne (« il », « elle »). Jamais de « je » en dehors des dialogues.
+- Les dialogues sont entre guillemets « », intégrés au récit. Pas d'astérisques, pas d'emoji dans la narration.
+- Mémoire : tout ce qui s'est passé dans les scènes précédentes est acquis. Ne répète jamais une action déjà faite (arriver, entrer, s'asseoir, commander…), ne reviens pas en arrière, fais avancer l'histoire.
+- Garde la même forme d'adresse (tu ou vous) que dans les scènes précédentes pour chaque personnage.
+- Les choix sont de courtes actions de ${S.me.name}, à l'infinitif ou au présent, sans emoji, sans astérisques et sans préfixe du type « Tu proposes : ».`;
+const cleanChoices=a=>(a||[]).map(x=>String(x).replace(/^[\s📅🎁*]+/u,'').replace(/^(tu\s+\S+(\s+d'un ton \S+)?)\s*:\s*/i,'').replace(/\*/g,'').trim()).filter(Boolean).slice(0,3);
 async function startDate(c,idea){
   busy.event='Préparation du rendez-vous';busy.eventFor=c.id;render();scrollChat();
-  const prompt=`${frame()}\n\nPersonnage :\n\n### ${c.id}\n${persona(c,'dm')}\n\n${c.name} a accepté un rendez-vous en tête-à-tête avec ${S.me.name} : « ${idea} ». Écris la scène d'ouverture de ce rendez-vous façon « livre dont vous êtes le héros », à la deuxième personne (« tu » = ${S.me.name}, une femme : accorde au féminin ; jamais à la première personne d'un personnage), 90 à 150 mots, fidèle au personnage, à votre relation et à son humeur du jour. Termine sur un moment de choix avec 3 options courtes (6 à 12 mots) et vraiment différentes.\n\nRéponds UNIQUEMENT avec ce JSON :\n{"title":"titre court du rendez-vous","scene":"...","choices":["...","...","..."]}`;
+  const prompt=`${frame()}\n\nPersonnage :\n\n### ${c.id}\n${persona(c,'event')}\n\n${c.name} a accepté un rendez-vous en tête-à-tête avec ${S.me.name} : « ${idea} ». Écris la scène d'ouverture de ce rendez-vous façon « livre dont vous êtes le héros », à la deuxième personne (« tu » = ${S.me.name}, une femme : accorde au féminin ; jamais à la première personne d'un personnage), 90 à 150 mots, fidèle au personnage, à votre relation et à son humeur du jour. Termine sur un moment de choix avec 3 options courtes (6 à 12 mots) et vraiment différentes.\n\nRéponds UNIQUEMENT avec ce JSON :\n{"title":"titre court du rendez-vous","scene":"...","choices":["...","...","..."]}`;
   try{
-    const r=await (FEAT='Rendez-vous',askJSON)(prompt,routeFor(c));
-    if(r.scene)S.event={id:uid(),title:r.title||`Rendez-vous avec ${c.name}`,cast:[c.id],dateWith:c.id,steps:[{scene:r.scene,choices:(r.choices||[]).slice(0,3),pick:null}],done:false};
+    const r=await (FEAT='Rendez-vous',askJSON)(prompt+EV_RULES,routeFor(c));
+    if(r.scene)S.event={id:uid(),title:r.title||`Rendez-vous avec ${c.name}`,cast:[c.id],dateWith:c.id,steps:[{scene:r.scene,choices:cleanChoices(r.choices),pick:null}],done:false};
   }catch(e){const t=errText(e);if(t)toast(t)}
   delete busy.event;delete busy.eventFor;save();render();scrollChat();
 }
