@@ -684,6 +684,7 @@ async function askJSON(prompt,route){
 function errText(e){
   const c=e&&e.code;
   if(c==='not_granted')return"Claude n'a pas été autorisé, les persos ne peuvent pas répondre. Recharge la page pour qu'on te le redemande.";
+  if(c==='timeout')return'Le modèle a mis trop de temps à répondre. Réessaie, ou choisis un modèle plus rapide dans ⚙️.'+(e.diag?`\n🔧 Détail : ${e.diag}`:'');
   if(c==='rate_limited')return'Le modèle est saturé ou sa limite est atteinte. Réessaie dans une minute.'+(e.diag?`\n🔧 Détail : ${e.diag}`:'');
   if(c==='unavailable')return'Connexion impossible (internet ou serveur). Réessaie dans un instant.'+(e.diag?`\n🔧 Détail : ${e.diag}`:'');
   if(c==='no_key'||c==='bad_key'||c==='no_model')return'Réglages IA à vérifier : '+(e.message||c)+'.';

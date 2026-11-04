@@ -114,9 +114,9 @@ async function callGemini(model,prompt,o){
   const cats=['HARM_CATEGORY_HARASSMENT','HARM_CATEGORY_HATE_SPEECH','HARM_CATEGORY_SEXUALLY_EXPLICIT','HARM_CATEGORY_DANGEROUS_CONTENT'];
   let res;
   try{res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`,{method:'POST',signal:o.signal,headers:{'Content-Type':'application/json','x-goog-api-key':key},
-    body:JSON.stringify({contents:[{role:'user',parts:[{text:prompt}]}],generationConfig:{temperature:1,maxOutputTokens:o.maxTokens||32768},safetySettings:cats.map(category=>({category,threshold:'BLOCK_NONE'}))})})}
+    body:JSON.stringify({contents:[{role:'user',parts:[{text:prompt}]}],generationConfig:Object.assign({temperature:1,maxOutputTokens:o.maxTokens||32768},(o.fast&&!o.noThink)?{thinkingConfig:/2\.5/.test(model)?{thinkingBudget:0}:{thinkingLevel:'low'}}:{}),safetySettings:cats.map(category=>({category,threshold:'BLOCK_NONE'}))})})}
   catch(e){if(e&&e.name==='AbortError')throw{code:'cancelled'};throw{code:'unavailable',message:String(e)}}
-  if(!res.ok){const tx=await res.text().catch(()=>'');if(res.status===400&&/thinking/i.test(tx)&&!o.noThink)return callGemini(model,prompt,Object.assign({},o,{noThink:true}));throw httpErr(res.status,tx)}
+  if(!res.ok){const tx=await res.text().catch(()=>'');if(res.status===400&&o.fast&&!o.noThink)return callGemini(model,prompt,Object.assign({},o,{noThink:true}));throw httpErr(res.status,tx)}
   let text='',reason='';
   try{
     for await(const d of sse(res)){
@@ -155,9 +155,17 @@ async function callOpenRouter(model,prompt,o){
   if(!text.trim())throw{code:'empty',message:reason||'réponse vide'};
   return{text,truncated:reason==='length'};
 }
-function callOnce(r,prompt,o){
+async function callOnce(r,prompt,o){
   if(!r||!r.m||r.p==='none')throw{code:'no_model'};
-  return r.p==='openrouter'?callOpenRouter(r.m,prompt,o):callGemini(r.m,prompt,o);
+  /* Délai maximum : si le modèle ne finit pas à temps, on passe au suivant au lieu d'attendre indéfiniment. */
+  const ms=o.timeout||((o.route==='story'||o.route==='storyFine'||o.route==='spicy')?300000:75000);
+  const ctl=new AbortController();let timedOut=false;
+  const t=setTimeout(()=>{timedOut=true;ctl.abort()},ms);
+  const onAbort=()=>ctl.abort();if(o.signal){if(o.signal.aborted)ctl.abort();else o.signal.addEventListener('abort',onAbort)}
+  const oo=Object.assign({},o,{signal:ctl.signal,fast:o.route==='social'||!o.route});
+  try{return await (r.p==='openrouter'?callOpenRouter(r.m,prompt,oo):callGemini(r.m,prompt,oo))}
+  catch(e){if(timedOut&&e&&e.code==='cancelled')throw{code:'timeout',message:`pas de réponse après ${Math.round(ms/1000)} s`};throw e}
+  finally{clearTimeout(t);if(o.signal)o.signal.removeEventListener('abort',onAbort)}
 }
 /* Surcharge (503) ou limite passagère (429) : on réessaie 2 fois avant d'abandonner ce modèle. */
 async function callOneModel(r,prompt,o){
@@ -196,12 +204,12 @@ async function sample(input,opts){
     catch(e){last=e;if(e.code==='cancelled')throw e;
       diag.push(`${chain[i].p==='openrouter'?'OpenRouter':'Gemini'} (${chain[i].m}) : ${e.code}${e.message?' – '+String(e.message).replace(/\s+/g,' ').slice(0,120):''}`);
       try{console.warn('[Mortelbook IA]',diag[diag.length-1])}catch(x){}
-      const retry=['rate_limited','blocked','server','unavailable','empty','no_key'].includes(e.code);
+      const retry=['rate_limited','blocked','server','unavailable','empty','no_key','timeout'].includes(e.code);
       if(!retry||i===chain.length-1)break;
       if(o.onText)o.onText({text:'',delta:''});
     }
   }
-  const m={no_key:'clé API manquante : ouvre ⚙️ pour la renseigner',bad_key:'clé API refusée : vérifie-la dans ⚙️',credits:'crédit OpenRouter épuisé',rate_limited:'modèle saturé ou limite atteinte, réessaie dans une minute',blocked:'le modèle a refusé de répondre',no_model:'aucun modèle choisi pour cet usage dans ⚙️'};
+  const m={no_key:'clé API manquante : ouvre ⚙️ pour la renseigner',bad_key:'clé API refusée : vérifie-la dans ⚙️',credits:'crédit OpenRouter épuisé',rate_limited:'modèle saturé ou limite atteinte, réessaie dans une minute',timeout:'le modèle a mis trop de temps à répondre',blocked:'le modèle a refusé de répondre',no_model:'aucun modèle choisi pour cet usage dans ⚙️'};
   throw Object.assign({},last,{message:m[last&&last.code]||(last&&last.message)||'erreur',diag:diag.join(' | ')});
 }
 
