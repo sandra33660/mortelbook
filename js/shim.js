@@ -25,7 +25,7 @@ const DEFAULT_AI={
     social:{p:'gemini',m:'gemini-flash-lite-latest'},
     story:{p:'gemini',m:'gemini-flash-latest'},
     storyFine:{p:'gemini',m:'gemini-flash-latest'},
-    spicy:{p:'openrouter',m:'thedrummer/cydonia-24b-v4.1, mistralai/mistral-nemo'},
+    spicy:{p:'gemini',m:'gemini-flash-latest'},
     fallback:{p:'openrouter',m:'thedrummer/cydonia-24b-v4.1'}
   }
 };

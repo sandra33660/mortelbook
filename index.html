@@ -316,7 +316,7 @@ function trim(){
   if(S.snaps){S.snaps=S.snaps.filter(s=>now()-s.ts<864e5);if(S.snaps.length>30)S.snaps.splice(0,S.snaps.length-30)}
   if(S.posts.length>40)S.posts.splice(40);
   for(const k in S.dms){const a=S.dms[k];if(a.length>5000)a.splice(0,a.length-5000)}
-  S.chars.forEach(c=>{c.memories=c.memories||[];if(c.memories.length>12)c.memories.splice(0,c.memories.length-12)});
+  S.chars.forEach(c=>{c.memories=c.memories||[];if(c.memories.length>25)c.memories.splice(0,c.memories.length-25)});
 }
 let written={},saveErr=null,remoteLoaded=false;
 function contentAt(st){
@@ -503,6 +503,8 @@ function mood(c){
   return m==="d'humeur à flirter"&&nonRom(c)?"d'humeur joueuse":m;
 }
 function addressOf(c){
+  if(c.addrLock)return c.addrLock;
+  if(c.partner==='me'&&(c.voice||[]).length){const v=(c.voice||[]).join(' ').toLowerCase();const tu=(v.match(/\b(tu|toi|ton|ta|tes)\b/g)||[]).length,vo=(v.match(/\b(vous|votre|vos)\b/g)||[]).length;return vo>tu?'vous':'tu'}
   if(c.address)return c.address;
   const t=(S.dms[c.id]||[]).filter(m=>m.from==='them').slice(-6).map(m=>' '+m.text.toLowerCase()+' ').join(' ');
   const tu=(t.match(/[\s'’](tu|te|toi|ton|ta|tes|t['’])[\s,.!?]/g)||[]).length;
@@ -553,7 +555,7 @@ function voiceNotes(c){
 }
 function warmth(c){
   const fam=nonRom(c);
-  if(c.partner==='me'||(c.score>=80&&!fam))return `\nTON AVEC ELLE (très important) : ${c.name} l'aime, et ça doit se sentir dans CHAQUE message, à sa manière. Garde son caractère, son ironie et sa voix, mais mets-les au service de la tendresse : taquineries affectueuses, piques qui cachent mal l'attachement, petites attentions, un mot doux qui lui échappe, de l'humour complice. Il est content qu'elle lui écrive, même s'il ne l'avoue pas franchement. Il rebondit sur ce qu'elle dit, la fait rire ou la provoque gentiment, prolonge l'échange. JAMAIS froid, sec, distant ou expéditif avec elle (pas de réponses qui ferment la conversation), sauf s'ils sont en pleine dispute.`;
+  if(c.partner==='me'||(c.score>=80&&!fam))return `\nTON AVEC ELLE (très important) : ${c.name} l'aime, et ça doit se sentir dans CHAQUE message, à sa manière. Garde son caractère, son ironie et sa voix, mais mets-les au service de la tendresse : taquineries affectueuses, piques qui cachent mal l'attachement, petites attentions, un mot doux qui lui échappe, de l'humour complice. Il est content qu'elle lui écrive, même s'il ne l'avoue pas franchement. Il rebondit sur ce qu'elle dit, la fait rire ou la provoque gentiment, prolonge l'échange. JAMAIS froid, sec, distant ou expéditif avec elle (pas de réponses qui ferment la conversation), sauf s'ils sont en pleine dispute. Leur vie de couple ne se résume pas au désir : la plupart des échanges parlent d'eux, du quotidien, de leurs projets, de leurs amis, de petites taquineries. Il ne propose PAS l'intimité à chaque message : la sensualité vient quand ELLE l'amène, ou de temps en temps quand le moment s'y prête vraiment.`;
   if(c.score>=80&&fam)return `\nTON AVEC ELLE (très important) : ${c.name} tient énormément à elle, comme à quelqu'un de sa famille. Garde son caractère et sa voix, mais l'affection doit se sentir : complicité, taquineries bienveillantes, attention à ce qu'elle vit, humour partagé. Jamais froid ni expéditif avec elle, sans romance.`;
   if(c.score>=50)return `\nTON AVEC ELLE : ${c.name} l'apprécie vraiment. À travers son caractère, ça se voit : il la taquine avec complicité, s'intéresse à ce qu'elle dit, rebondit, prolonge volontiers l'échange. Pas de froideur gratuite.`;
   if(c.score>=20)return `\nTON AVEC ELLE : plutôt bien disposé envers elle, à sa façon ; il peut la taquiner, mais sans dureté gratuite.`;
@@ -572,6 +574,8 @@ function persona(c,mode){
     if(mp)p+=`\n${S.me.name} est officiellement en couple avec ${mp.name}, tout le monde le sait. ${c.name} n'est pas jaloux de ${mp.name} ni de leur couple${cp||c.friendOnly?'':` ; il respecte ce couple : pas de drague, au plus, très rarement, une taquinerie légère qu'il n'appuie jamais`}.`;
     if(c.friendOnly)p+=`\n${S.me.name} a fait comprendre à ${c.name} qu'elle veut seulement de l'amitié, et il l'a accepté : plus AUCUNE drague, ni allusion romantique, ni jalousie amoureuse. Il reste proche d'elle comme un ami fidèle${c.score>=80?', presque un membre de sa famille':''}, avec sa propre personnalité (taquin, protecteur, bourru...).`;
   }}
+  if(c.core===undefined){const k=(c.memories||[]).filter(m=>/mari|épous|fianç|alliance|bague|enfant|bébé|enceinte|emménag|vivent ensemble|chez eux/i.test(m));c.core=k.join('\n')}
+  if(c.core&&c.core.trim())p+=`\nÀ NE JAMAIS OUBLIER (faits établis entre ${c.name} et ${S.me.name}, toujours vrais) :\n${c.core.trim()}`;
   if(c.memories&&c.memories.length)p+=`\nCe que ${c.name} sait déjà de ${S.me.name} : ${c.memories.join(' ; ')}.`;
   const ad=addressOf(c);
   p+=ad?`\nIMPORTANT : ${c.name} ${ad==='tu'?'TUTOIE':'VOUVOIE'} ${S.me.name}, c'est établi entre eux. Garde cette forme PARTOUT (messages privés, posts, commentaires, groupes, dialogues des événements), sauf changement délibéré et marquant de la relation.`:`\nTutoiement ou vouvoiement de ${S.me.name} : choisis selon le personnage et votre relation, puis reste cohérent partout.`;
@@ -810,7 +814,7 @@ async function sendDM(cid,text,extra){
   try{
     const r=await (FEAT='Messages privés',askJSON)(prompt,routeFor(c));
     th=S.dms[cid]=S.dms[cid]||[];myMsg.seen=now();c.activeAt=now();
-    if(r.address==='tu'||r.address==='vous')c.address=r.address;
+    if(!c.address&&!c.addrLock&&(r.address==='tu'||r.address==='vous'))c.address=r.address;
     const rep=String(r.reply||r.text||r.message||'').trim();
     if(typeof r.react==='string'&&RX.includes(r.react.trim())){myMsg.rx=Object.assign(myMsg.rx||{},{[cid]:r.react.trim()})}
     if(rep)th.push({from:'them',text:rep,ts:now()});
@@ -962,7 +966,7 @@ async function groupOuting(gidv,ids,idea){
   if(!acc.length)return;
   busy.event='Préparation de la sortie';busy.eventFor='g:'+gidv;render();scrollChat();
   const cast=acc.map(charById);
-  const prompt=`${frame()}\n\nPersonnages :\n\n${castText(cast)}\n\n${S.me.name} a proposé une sortie au groupe « ${g.name} » : « ${idea} ». Ont accepté de venir : ${cast.map(c=>c.name).join(', ')}. Écris la scène d'ouverture façon « livre dont vous êtes le héros », à la deuxième personne (« tu »), 100 à 170 mots, avec des dialogues fidèles aux personnages (chacun utilise SA forme d'adresse habituelle avec elle) et leurs relations entre eux. Termine sur un moment de choix avec 3 options courtes (6 à 12 mots) et vraiment différentes.\n\nRéponds UNIQUEMENT avec ce JSON :\n{"title":"titre court","scene":"...","choices":["...","...","..."]}`;
+  const prompt=`${frame()}\n\nPersonnages :\n\n${castText(cast)}\n\n${S.me.name} a proposé une sortie au groupe « ${g.name} » : « ${idea} ». Ont accepté de venir : ${cast.map(c=>c.name).join(', ')}. Écris la scène d'ouverture façon « livre dont vous êtes le héros », à la deuxième personne (« tu » = ${S.me.name}, une femme : accorde au féminin ; jamais à la première personne d'un personnage), 100 à 170 mots, avec des dialogues fidèles aux personnages (chacun utilise SA forme d'adresse habituelle avec elle) et leurs relations entre eux. Termine sur un moment de choix avec 3 options courtes (6 à 12 mots) et vraiment différentes.\n\nRéponds UNIQUEMENT avec ce JSON :\n{"title":"titre court","scene":"...","choices":["...","...","..."]}`;
   try{
     const r=await (FEAT='Événements',askJSON)(prompt);
     if(r.scene)S.event={id:uid(),title:r.title||idea,cast:acc,groupWith:gidv,steps:[{scene:r.scene,choices:(r.choices||[]).slice(0,3),pick:null}],done:false};
@@ -991,7 +995,7 @@ async function proposeDate(cid,idea){
 }
 async function startDate(c,idea){
   busy.event='Préparation du rendez-vous';busy.eventFor=c.id;render();scrollChat();
-  const prompt=`${frame()}\n\nPersonnage :\n\n### ${c.id}\n${persona(c,'dm')}\n\n${c.name} a accepté un rendez-vous en tête-à-tête avec ${S.me.name} : « ${idea} ». Écris la scène d'ouverture de ce rendez-vous façon « livre dont vous êtes le héros », à la deuxième personne (« tu »), 90 à 150 mots, fidèle au personnage, à votre relation et à son humeur du jour. Termine sur un moment de choix avec 3 options courtes (6 à 12 mots) et vraiment différentes.\n\nRéponds UNIQUEMENT avec ce JSON :\n{"title":"titre court du rendez-vous","scene":"...","choices":["...","...","..."]}`;
+  const prompt=`${frame()}\n\nPersonnage :\n\n### ${c.id}\n${persona(c,'dm')}\n\n${c.name} a accepté un rendez-vous en tête-à-tête avec ${S.me.name} : « ${idea} ». Écris la scène d'ouverture de ce rendez-vous façon « livre dont vous êtes le héros », à la deuxième personne (« tu » = ${S.me.name}, une femme : accorde au féminin ; jamais à la première personne d'un personnage), 90 à 150 mots, fidèle au personnage, à votre relation et à son humeur du jour. Termine sur un moment de choix avec 3 options courtes (6 à 12 mots) et vraiment différentes.\n\nRéponds UNIQUEMENT avec ce JSON :\n{"title":"titre court du rendez-vous","scene":"...","choices":["...","...","..."]}`;
   try{
     const r=await (FEAT='Rendez-vous',askJSON)(prompt,routeFor(c));
     if(r.scene)S.event={id:uid(),title:r.title||`Rendez-vous avec ${c.name}`,cast:[c.id],dateWith:c.id,steps:[{scene:r.scene,choices:(r.choices||[]).slice(0,3),pick:null}],done:false};
@@ -1470,7 +1474,30 @@ function castInfo(f){
   }
   return{names,txt,rel};
 }
-function storyBase(f,ci){
+const STYLE_GUARD=`
+EXIGENCES DE STYLE (importantes) :
+- Aucun mot fort répété dans le chapitre : chaque sensation, couleur, émotion se dit une seule fois, puis autrement. Bannis les tics et clichés de romance : « voix rauque », « gémissement étranglé », « onde de choc », « décharge électrique », « brasier », « brûlant » à répétition, « souffle court », « cœur battant à tout rompre », « ses lèvres s'écrasèrent », « le monde disparut ».
+- Montre plutôt que dire : un geste précis, un détail concret de l'univers, une pensée intérieure qui dit l'émotion sans la nommer.
+- La tension monte par étapes : regards, hésitations, gestes retenus, avant l'aveu ou l'intimité.
+- Dialogues introduits par de vrais verbes de parole, dans le bon registre (tu/vous cohérent, accords corrects).
+- Un objet ou un animal n'est jamais un personnage qui parle, sauf si l'histoire le prévoit.`;
+const storyBase=(f,ci)=>storyBase0(f,ci)+STYLE_GUARD;
+async function polish(text,f){
+  if(!text||text.length<600)return null;
+  const s=sample||(samplePromise?await samplePromise:null);if(!s)return null;
+  const prompt=`Tu es un correcteur littéraire exigeant, en français. Voici un chapitre de fanfiction. Réécris-le en gardant EXACTEMENT la même histoire, les mêmes scènes, les mêmes dialogues pour l'essentiel, la même longueur (±10 %) et le même niveau de romance ou de sensualité. Corrige seulement :
+- les répétitions de mots et d'images (aucun mot fort deux fois) et les clichés de romance ;
+- les incohérences (tu/vous, prénoms, accords, objets qui changent) ;
+- les verbes de parole inadaptés et les phrases lourdes.
+Garde les passages entre astérisques en italique tels quels s'ils sont justes. Renvoie UNIQUEMENT le texte corrigé, sans titre ni commentaire.
+
+TEXTE :
+${text}`;
+  try{const {text:out}=await s(prompt,{cache:false,route:tierOpt(f).route,signal:storyCtl?storyCtl.signal:undefined});const t=String(out||'').trim();trackUse('Histoires (relecture)',prompt.length,t.length);
+    if(t.length>text.length*0.7&&t.length<text.length*1.4)return t}catch(e){}
+  return null;
+}
+function storyBase0(f,ci){
   return `Tu es une autrice de fanfiction talentueuse. Tu écris en français une histoire originale, pour une seule lectrice, à usage strictement privé.
 
 Personnages :
@@ -1579,6 +1606,7 @@ async function writeStory(){
   if(last)trackUse('Histoires',storyPrompt(f,ci,plan).length,last.length);
   const sp=splitTitle(last);if(sp.title)entry.title=sp.title;bodies[id].chapters[0]=sp.body;
   if(looksCut(sp.body)&&storyCtl&&!storyCtl.signal.aborted){toast("L'histoire a été coupée : la plume la termine…");await finishCut(entry,0,t=>{bodies[id].chapters[0]=t;liveUpdate(id)});sp.body=bodies[id].chapters[0]}
+  if(sp.body.trim()&&storyCtl&&!storyCtl.signal.aborted){busy.storyPhase='polish';toast('✨ Relecture de l\'histoire…');const pz=await polish(sp.body,f);delete busy.storyPhase;if(pz){bodies[id].chapters[0]=pz;sp.body=pz;liveUpdate(id)}}
   delete busy.story;storyCtl=null;
   if(!sp.body.trim()){S.stories=S.stories.filter(x=>x.id!==id);delete bodies[id];storyOpen=null}
   else{entry.words=wordCount(bodies[id]);await saveBody(id)}
@@ -1654,6 +1682,7 @@ Format : première ligne « CHAPITRE : » suivi du titre du chapitre, puis une l
   if(!q.body.trim()){delete busy.storyCh;b.chapters.splice(n-1,1);sg.titles.splice(n-1,1);save();render();return false}
   b.chapters[n-1]=q.body.trim();
   if(!q.summary&&looksCut(q.body)){toast('Le chapitre a été coupé : la plume le termine…');await finishCut(entry,n-1,t=>{b.chapters[n-1]=t;liveUpdate(id)})}
+  if(storyCtl&&!storyCtl.signal.aborted){toast('✨ Relecture du chapitre…');const pz=await polish(b.chapters[n-1],f);if(pz){b.chapters[n-1]=pz;liveUpdate(id)}}
   delete busy.storyCh;
   sg.titles[n-1]=q.title;sg.done=b.chapters.length;
   if(curCh(b,entry)!==n-1){entry.newCh=(entry.newCh||[]).concat(n-1);toast(`✨ Le chapitre ${n} est prêt.`)}const fi=String(q.summary||'').search(/\n?\s*\**\s*FAITS\s*:/i);
@@ -1715,6 +1744,7 @@ ${ctx}
   if(last)trackUse('Histoires',prompt.length,last.length);
   b.chapters[b.chapters.length-1]=last.trim();
   if(looksCut(last)&&storyCtl&&!storyCtl.signal.aborted){toast('Le chapitre a été coupé : la plume le termine…');await finishCut(entry,b.chapters.length-1,t=>{b.chapters[b.chapters.length-1]=t;liveUpdate(id)})}
+  if(storyCtl&&!storyCtl.signal.aborted){toast('✨ Relecture du chapitre…');const pz=await polish(b.chapters[b.chapters.length-1],f);if(pz){b.chapters[b.chapters.length-1]=pz;liveUpdate(id)}}
   delete busy.storyCh;
   if(!last.trim())b.chapters.pop();
   else if(curCh(b,entry)!==b.chapters.length-1){entry.newCh=(entry.newCh||[]).concat(b.chapters.length-1);toast(`✨ Le chapitre ${b.chapters.length} est prêt.`)}
@@ -1882,6 +1912,8 @@ function charsView(){
     ${statusOf(c)?`<div class="small" style="margin-top:4px">${esc(statusOf(c))}</div>`:''}
     <div class="small" style="margin-top:6px">Humeur du jour : ${esc(mood(c))}. Difficulté : ${esc(c.difficulty||'Normal')}.</div>
     ${gauge(c.score)}<div class="small">${c.score} / 100. ${esc(c.name.split(' ')[0])} ${esc(tierFor(c).unlock)}.</div>${nextTier(c)}
+    <label style="margin-top:10px">📌 À ne jamais oublier (${esc(c.name.split(' ')[0])} s'en souviendra toujours)</label><textarea id="core-${c.id}" data-core="${c.id}" placeholder="Ex : nous sommes mariés depuis le bal d'hiver ; nous vivons ensemble aux cachots…">${esc(c.core||'')}</textarea>
+    <label>Il te parle en</label><select data-addr="${c.id}" style="width:100%;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:inherit"><option value="">Laisser le perso décider</option><option value="tu"${c.addrLock==='tu'?' selected':''}>Tutoiement (toujours « tu »)</option><option value="vous"${c.addrLock==='vous'?' selected':''}>Vouvoiement (toujours « vous »)</option></select>
     <div class="small" style="margin-top:6px">${SECRET_TIERS.map((t,i)=>(c.secrets||[])[i]?`🔓 ${esc(c.secrets[i])}`:`🔒 Secret (${t.name})`).join('<br>')}</div>
     ${pendingSecret(c)>=0?`<button class="btn gold small" data-secret="${c.id}" style="margin-top:8px">🤫 ${esc(c.name.split(' ')[0])} a quelque chose à te confier</button>`:''}
     ${c.memories&&c.memories.length?`<details><summary>Ce que ${esc(c.name.split(' ')[0])} sait de toi (${c.memories.length})</summary><ul class="mem">${c.memories.map(m=>`<li>${esc(m)}</li>`).join('')}</ul></details>`:''}
@@ -2106,6 +2138,8 @@ document.getElementById('view').addEventListener('input',e=>{
   const k=e.target.dataset&&e.target.dataset.sf;if(k){F()[k]=e.target.value;save()}
 });
 document.getElementById('view').addEventListener('change',e=>{
+  if(e.target.dataset&&e.target.dataset.core!==undefined){const c=charById(e.target.dataset.core);if(c){c.core=e.target.value.slice(0,1500);save();toast(`📌 ${c.name.split(' ')[0]} s'en souviendra.`)}return}
+  if(e.target.dataset&&e.target.dataset.addr!==undefined){const c=charById(e.target.dataset.addr);if(c){c.addrLock=e.target.value||undefined;if(c.addrLock)c.address=c.addrLock;save();render()}return}
   if(e.target.dataset&&e.target.dataset.mypartner){const v=e.target.value;if(v){const c=charById(v);if(c)setPartner(c,'me')}else{const mp=myPartner();if(mp){mp.partner=null;toast('Te voilà célibataire.');save();render()}}return}
   if(e.target.dataset&&e.target.dataset.partner){const c=charById(e.target.dataset.partner);if(c){const v=e.target.value;if(!v){setPartner(c,null);toast(`${c.name} est maintenant célibataire.`)}else setPartner(c,v)}return}
   if(e.target.id==='suse'){F().useMB=e.target.checked;save()}
