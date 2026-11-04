@@ -2150,6 +2150,7 @@ document.getElementById('view').addEventListener('click',e=>{
 document.getElementById('view').addEventListener('focusin',e=>{if(e.target.id==='dmin'){scrollChat();setTimeout(scrollChat,350)}});
 document.getElementById('view').addEventListener('input',e=>{
   if(e.target.id==='libq'){libSearch=e.target.value;render();return}
+  if(e.target.dataset&&e.target.dataset.core!==undefined){const c=charById(e.target.dataset.core);if(c){c.core=e.target.value.slice(0,1500);save()}return}
   const k=e.target.dataset&&e.target.dataset.sf;if(k){F()[k]=e.target.value;save()}
 });
 document.getElementById('view').addEventListener('change',e=>{
