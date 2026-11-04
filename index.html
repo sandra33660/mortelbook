@@ -1389,6 +1389,32 @@ function splitSummary(t){
   if(m<0)return{body:String(t),summary:''};
   return{body:String(t).slice(0,m).trim(),summary:String(t).slice(m).replace(/^\s*\**\s*R[ÉE]SUM[ÉE]\s*:\s*/i,'').replace(/\*/g,'').trim()};
 }
+let exportOpen=null;
+function storyFileName(e,ext){return (String(e.title||'histoire').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^\w\- ]+/g,'').trim().replace(/\s+/g,'-').slice(0,60)||'histoire')+'.'+ext}
+function storyExportHTML(b,e){
+  const total=e.saga?e.saga.total:0;
+  const chs=b.chapters.map((c,i)=>{const t=e.saga&&e.saga.titles&&e.saga.titles[i];const head=(total||b.chapters.length>1)?`<h2>Chapitre ${i+1}${t?` : ${esc(t)}`:''}</h2>`:'';
+    return head+String(c).split(/\n\s*\n|\n/).filter(x=>x.trim()).map(x=>`<p>${fmt(x.trim())}</p>`).join('')}).join('\n');
+  const date=new Date(e.ts).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'});
+  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(e.title)}</title>
+<style>:root{--bg:#fbf8f1;--ink:#2a2420;--muted:#7a6f66;--line:#e5ddd0}@media (prefers-color-scheme:dark){:root{--bg:#1c1916;--ink:#ece4d6;--muted:#a3988c;--line:#3a332c}}
+body{margin:0;background:var(--bg);color:var(--ink);font:19px/1.7 Georgia,"Times New Roman",serif}main{max-width:680px;margin:0 auto;padding:32px 20px 80px}
+h1{font-size:30px;line-height:1.25;margin:0 0 6px;font-weight:normal}.meta{color:var(--muted);font-size:15px;margin-bottom:28px;border-bottom:1px solid var(--line);padding-bottom:16px}
+h2{font-size:21px;font-weight:normal;font-style:italic;margin:44px 0 14px;text-align:center}p{margin:0 0 1em;text-align:justify;hyphens:auto}em{font-style:italic}</style></head>
+<body><main><h1>${esc(e.title)}</h1><div class="meta">${e.chars&&e.chars.length?esc(e.chars.join(', '))+' · ':''}${date}${e.words?` · ${e.words} mots`:''}</div>
+${chs}</main></body></html>`;
+}
+function storyExportTXT(b,e){
+  const total=e.saga?e.saga.total:0;
+  return `${e.title}\n${'='.repeat(Math.min(60,String(e.title).length))}\n${e.chars&&e.chars.length?e.chars.join(', ')+'\n':''}\n`+b.chapters.map((c,i)=>{const t=e.saga&&e.saga.titles&&e.saga.titles[i];return ((total||b.chapters.length>1)?`\n\nChapitre ${i+1}${t?' : '+t:''}\n\n`:'')+String(c).replace(/\*([^*\n]+)\*/g,'_$1_').trim()}).join('')+'\n';
+}
+async function exportStory(id,kind){
+  const e=S.stories.find(x=>x.id===id);if(!e)return;
+  const b=await loadBody(id,true);if(!b||!b.chapters.length){toast("L'histoire n'est pas encore chargée, réessaie.");return}
+  const dl=await claude.use('downloads');if(!dl){toast("Le téléchargement n'est pas disponible ici.");return}
+  try{await dl.save({filename:storyFileName(e,kind),data:kind==='html'?storyExportHTML(b,e):storyExportTXT(b,e)});exportOpen=null;render();toast('📤 Fichier prêt : tu peux l\'envoyer à ta copine.')}
+  catch(err){if(err&&err.code!=='declined')toast("L'export n'a pas pu se faire"+(err&&err.code?` (${err.code})`:'')+'.')}
+}
 function storyHTML(b,e,only){
   if(!b)return'<p class="pending"><span class="dots">Chargement</span></p>';
   const total=e&&e.saga?e.saga.total:0;
@@ -1810,7 +1836,7 @@ function storiesView(){
     if(!b&&!loadTry[e.id]){loadTry[e.id]=1;loadBody(e.id).then(r=>{if(r)delete loadTry[e.id];if(storyOpen===e.id)render()})}
     const writing=busy.story===e.id;
     return `<div class="chathead"><button class="back" id="sback" aria-label="Retour à la bibliothèque">←</button><div><b>Bibliothèque</b><div class="small">${esc(e.chars.join(', '))}</div></div></div>
-    <article class="reader">${renaming===e.id?`<div class="creply" style="margin-bottom:8px"><input type="text" id="rnin" value="${esc(e.title)}" aria-label="Nouveau titre"><button class="btn small gold" data-rnok="${e.id}">OK</button></div>`:`<h2 id="rtitle">${esc(e.title)}</h2>${writing?'':`<button class="btn ghost small" data-rn="${e.id}" style="margin:2px 0 8px">✏️ Renommer</button>`}`}<div class="small">${new Date(e.ts).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})}${e.words?`, ${e.words} mots`:''}</div>${writing?'':listChipsHTML(e)}${chNavHTML(b,e,'top')}<div class="rtext" id="rtext" style="margin-top:14px">${storyHTML(b,e,isMulti(b,e)?curCh(b,e):null)}</div>${b&&!writing&&looksCut(b.chapters[isMulti(b,e)?curCh(b,e):0])?`<div class="banner" style="margin-top:12px">✂️ Ce ${isMulti(b,e)?'chapitre':'texte'} s'arrête en pleine phrase. <button class="btn gold small" data-repair="${isMulti(b,e)?curCh(b,e):0}" style="margin-left:6px">Le terminer</button></div>`:''}${chNavHTML(b,e,'bottom')}</article>
+    <article class="reader">${renaming===e.id?`<div class="creply" style="margin-bottom:8px"><input type="text" id="rnin" value="${esc(e.title)}" aria-label="Nouveau titre"><button class="btn small gold" data-rnok="${e.id}">OK</button></div>`:`<h2 id="rtitle">${esc(e.title)}</h2>${writing?'':`<button class="btn ghost small" data-rn="${e.id}" style="margin:2px 6px 8px 0">✏️ Renommer</button><button class="btn ghost small" data-sexp="${e.id}" aria-expanded="${exportOpen===e.id}" style="margin:2px 0 8px">📤 Exporter</button>${exportOpen===e.id?`<div class="card" style="margin:4px 0 10px"><div class="small" style="margin-bottom:8px">Pour la faire lire à quelqu'un : envoie-lui le fichier par message ou par e-mail.</div><div class="actions" style="justify-content:flex-start;gap:8px"><button class="btn gold small" data-sexpk="${e.id}§html">📄 Page lisible (.html)</button><button class="btn ghost small" data-sexpk="${e.id}§txt">Texte brut (.txt)</button></div><div class="small" style="margin-top:8px">La page .html s'ouvre sur n'importe quel téléphone ou ordinateur, avec une mise en page de livre.</div></div>`:''}`}`}<div class="small">${new Date(e.ts).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})}${e.words?`, ${e.words} mots`:''}</div>${writing?'':listChipsHTML(e)}${chNavHTML(b,e,'top')}<div class="rtext" id="rtext" style="margin-top:14px">${storyHTML(b,e,isMulti(b,e)?curCh(b,e):null)}</div>${b&&!writing&&looksCut(b.chapters[isMulti(b,e)?curCh(b,e):0])?`<div class="banner" style="margin-top:12px">✂️ Ce ${isMulti(b,e)?'chapitre':'texte'} s'arrête en pleine phrase. <button class="btn gold small" data-repair="${isMulti(b,e)?curCh(b,e):0}" style="margin-left:6px">Le terminer</button></div>`:''}${chNavHTML(b,e,'bottom')}</article>
     ${writing?`<div class="actions"><span class="pending"><span class="dots">Écriture en cours</span></span><button class="btn danger small" id="sstop">Arrêter</button></div>`:
     (e.saga&&b&&b.chapters.length>=e.saga.total)?`<div class="card"><div class="nm">✦ Histoire terminée (${e.saga.total} chapitres)</div><div class="actions"><button class="btn small ${e.fav?'gold':'ghost'}" data-sfav="${e.id}">${e.fav?'★ Favori':'☆ Favori'}</button><button class="btn danger small" data-sdel="${e.id}">Supprimer</button></div></div>`:
     `<div class="card"><label for="sfb">Ton avis sur cette histoire (retenu pour toutes les prochaines)</label><textarea id="sfb" placeholder="Ex : la fin était trop subtile, j'aurais voulu plus de moments entre eux, l'humour du hibou était top…"></textarea><div class="actions"><span></span><button class="btn small ghost" id="sfbgo">Retenir</button></div></div>
@@ -1973,6 +1999,8 @@ document.getElementById('view').addEventListener('click',e=>{
   if(t.dataset.notif){const n=(S.notifs||[]).find(x=>x.id===t.dataset.notif);if(n){if(tab==='notifs')profPrev={tab:'feed',openChat:null};goTo(n.to)}return}
   if(t.dataset.rxlist){showRx(t.dataset.rxlist);return}
   if(t.id==='mbexport'){exportAll();return}
+  if(t.dataset.sexp){exportOpen=exportOpen===t.dataset.sexp?null:t.dataset.sexp;render();return}
+  if(t.dataset.sexpk){const [id,k]=t.dataset.sexpk.split('§');exportStory(id,k);return}
   if(t.dataset.retry){const [k,id]=t.dataset.retry.split('§');const arr=k==='d'?(S.dms[id]||[]):((gid(id)||{}).msgs||[]);const last=arr[arr.length-1];
     if(last&&last.from==='sys'&&last.retry){const r=last.retry;arr.pop();for(let j=arr.length-1;j>=0;j--){if(arr[j].from==='me'&&arr[j].text===r.text){arr.splice(j,1);break}if(arr[j].from!=='sys')break}
       if(k==='d')sendDM(id,r.text,r.extra||undefined);else sendGroup(id,r.text,{must:r.opt&&r.opt.must||undefined,extra:r.opt&&r.opt.extra||undefined})}
