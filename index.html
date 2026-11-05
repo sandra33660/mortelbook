@@ -594,6 +594,7 @@ function persona(c,mode){
   }}
   if(c.core===undefined){const k=(c.memories||[]).filter(m=>/mari|épous|fianç|alliance|bague|enfant|bébé|enceinte|emménag|vivent ensemble|chez eux/i.test(m));c.core=k.join('\n')}
   if(c.core&&c.core.trim())p+=`\nÀ NE JAMAIS OUBLIER (faits établis entre ${c.name} et ${S.me.name}, toujours vrais) :\n${c.core.trim()}`;
+  if(c.pins&&c.pins.length)p+=`\nMOMENTS FORTS DE VOTRE HISTOIRE (gardés précieusement par ${S.me.name}, ${c.name} s'en souvient et peut y faire allusion) :\n${c.pins.map(x=>`- ${new Date(x.ts).toLocaleDateString('fr-FR')} · ${x.who==='me'?S.me.name:c.name} : « ${x.t} »`).join('\n')}`;
   if(c.memories&&c.memories.length)p+=`\nCe que ${c.name} sait déjà de ${S.me.name} : ${c.memories.join(' ; ')}.`;
   const ad=addressOf(c);
   p+=ad?`\nIMPORTANT : ${c.name} ${ad==='tu'?'TUTOIE':'VOUVOIE'} ${S.me.name}, c'est établi entre eux. Garde cette forme PARTOUT (messages privés, posts, commentaires, groupes, dialogues des événements), sauf changement délibéré et marquant de la relation.`:`\nTutoiement ou vouvoiement de ${S.me.name} : choisis selon le personnage et votre relation, puis reste cohérent partout.`;
@@ -1115,9 +1116,10 @@ let mrxOpen=null;
 function msgArr(kind,id){return kind==='d'?(S.dms[id]||[]):((S.groups||[]).find(g=>g.id===id)||{msgs:[]}).msgs}
 function mrxHTML(kind,id,m,i){
   const key=`${kind}§${id}§${i}`;const r=m.rx||{};const ks=Object.keys(r);
+  const pinB=m.pinned?`<div class="small" style="align-self:${m.from==='me'?'flex-end':'flex-start'};margin:-4px 8px 2px">📌 gardé en mémoire</div>`:'';
   const badge=ks.length?`<button class="mrxb ${m.from==='me'?'me':'them'}" data-rxlist="${key}">${esc([...new Set(Object.values(r))].join(''))}${ks.length>1?` ${ks.length}`:''}</button>`:'';
-  const pick=mrxOpen===key?`<div class="rxpick" style="align-self:${m.from==='me'?'flex-end':'flex-start'}">${RX.map(e=>`<button data-mrxset="${key}§${e}" aria-label="Réagir ${e}">${e}</button>`).join('')}</div>`:'';
-  return badge+pick;
+  const pick=mrxOpen===key?`<div class="rxpick" style="align-self:${m.from==='me'?'flex-end':'flex-start'}">${RX.map(e=>`<button data-mrxset="${key}§${e}" aria-label="Réagir ${e}">${e}</button>`).join('')}${kind==='d'?`<button data-mpin="${key}" aria-label="Garder ce moment en mémoire" title="Garder en mémoire" style="border-left:1px solid var(--line);margin-left:4px;padding-left:8px">📌</button>`:''}</div>`:'';
+  return badge+pinB+pick;
 }
 function rxNote(m){const r=m.rx||{};const ks=Object.keys(r).filter(k=>k!==m.from);if(!ks.length)return'';return ` [réactions : ${ks.map(k=>`${k==='me'?S.me.name:nameOf(k)} ${r[k]}`).join(', ')}]`}
 const pickHTML=key=>`<div class="rxpick">${RX.map(e=>`<button data-rxset="${key}§${e}" aria-label="Réagir ${e}">${e}</button>`).join('')}</div>`;
@@ -1957,6 +1959,7 @@ function charsView(){
     ${gauge(c.score)}<div class="small">${c.score} / 100. ${esc(c.name.split(' ')[0])} ${esc(tierFor(c).unlock)}.</div>${nextTier(c)}
     <label style="margin-top:10px">📌 À ne jamais oublier (${esc(c.name.split(' ')[0])} s'en souviendra toujours)</label><textarea id="core-${c.id}" data-core="${c.id}" placeholder="Ex : nous sommes mariés depuis le bal d'hiver ; nous vivons ensemble aux cachots…">${esc(c.core||'')}</textarea>
     <label>Il te parle en</label><select data-addr="${c.id}" style="width:100%;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:inherit"><option value="">Laisser le perso décider</option><option value="tu"${c.addrLock==='tu'?' selected':''}>Tutoiement (toujours « tu »)</option><option value="vous"${c.addrLock==='vous'?' selected':''}>Vouvoiement (toujours « vous »)</option></select>
+    ${(c.pins||[]).length?`<label style="margin-top:10px">💫 Moments gardés en mémoire</label>${c.pins.map((x,i)=>`<div class="small" style="display:flex;gap:6px;align-items:flex-start;margin:4px 0"><span style="flex:1">${new Date(x.ts).toLocaleDateString('fr-FR')} · <b>${esc(x.who==='me'?S.me.name:c.name.split(' ')[0])}</b> : « ${esc(x.t.slice(0,160))}${x.t.length>160?'…':''} »</span><button class="crbtn" data-unpin="${c.id}§${i}" aria-label="Retirer">✕</button></div>`).join('')}`:''}
     <div class="small" style="margin-top:6px">${SECRET_TIERS.map((t,i)=>(c.secrets||[])[i]?`🔓 ${esc(c.secrets[i])}`:`🔒 Secret (${t.name})`).join('<br>')}</div>
     ${pendingSecret(c)>=0?`<button class="btn gold small" data-secret="${c.id}" style="margin-top:8px">🤫 ${esc(c.name.split(' ')[0])} a quelque chose à te confier</button>`:''}
     ${c.memories&&c.memories.length?`<details><summary>Ce que ${esc(c.name.split(' ')[0])} sait de toi (${c.memories.length})</summary><ul class="mem">${c.memories.map(m=>`<li>${esc(m)}</li>`).join('')}</ul></details>`:''}
@@ -2046,6 +2049,12 @@ document.getElementById('view').addEventListener('click',e=>{
   const pf=e.target.closest('[data-prof]');if(pf){openProfile(pf.dataset.prof);return}
   const mb=e.target.closest('[data-mrx]');if(mb&&!e.target.closest('button')){mrxOpen=mrxOpen===mb.dataset.mrx?null:mb.dataset.mrx;render();return}
   const t=e.target.closest('button');if(!t)return;
+  if(t.dataset.unpin){const [cid,i]=t.dataset.unpin.split('§');const c=charById(cid);if(c&&c.pins){const x=c.pins.splice(+i,1)[0];(S.dms[cid]||[]).forEach(m=>{if(m.pinned&&x&&String(m.text).replace(/\s+/g,' ').slice(0,320)===x.t)delete m.pinned});save();render()}return}
+  if(t.dataset.mpin){const pa=t.dataset.mpin.split('§');const c=charById(pa[1]);const m=msgArr('d',pa[1])[+pa[2]];mrxOpen=null;
+    if(c&&m){c.pins=c.pins||[];const txt=String(m.text).replace(/\s+/g,' ').slice(0,320);
+      if(m.pinned){c.pins=c.pins.filter(x=>x.t!==txt);delete m.pinned;toast('Moment retiré de sa mémoire.')}
+      else{c.pins.push({t:txt,who:m.from==='me'?'me':c.id,ts:m.ts||now()});if(c.pins.length>40)c.pins.splice(0,c.pins.length-40);m.pinned=true;toast(`📌 ${c.name.split(' ')[0]} gardera ce moment en mémoire.`)}}
+    save();render();return}
   if(t.dataset.mrxset){const pa=t.dataset.mrxset.split('§');const em=pa[3];const m=msgArr(pa[0],pa[1])[+pa[2]];mrxOpen=null;
     if(m){m.rx=m.rx||{};const nv=m.rx.me===em?null:em;if(nv)m.rx.me=nv;else delete m.rx.me;if(!Object.keys(m.rx).length)delete m.rx;
       const c=charById(m.from);if(nv&&c&&!m.rxOnce){m.rxOnce=true;if(em==='😡')applyDelta(c,-1,`tu as réagi ${em}`,true);else if(Math.random()<.5)applyDelta(c,1,`tu as réagi ${em}`,true)}}
